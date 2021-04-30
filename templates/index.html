@@ -1,0 +1,2071 @@
+<html>
+<body style="background-color:#b0e0e6;">
+
+<link href="./static/fontawesome-free-5.15.2-web/css/all.css" rel="stylesheet">
+<script type="text/javascript" src="./static/fontawesome-free-5.15.2-web/js/all.js"></script>
+<script type="text/javascript" src="./static/js/hammer.min.js"></script>
+<script type="text/javascript" src="static/js/jquery.min.js"></script>
+<!-- <script src="//code.jquery.com/jquery-1.10.2.js"></script> -->
+<script src="https://code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<!-- <script type="text/javascript" src="static/js/cornerstone.min.js"></script> -->
+<script type="text/javascript" src="static/js/cornerstone2.js"></script>
+<!-- <script type="text/javascript" src="static/js/dicomParser.min.js"></script> -->
+<script type="text/javascript" src="static/js/dicomParser2.js"></script>
+<!-- <script type="text/javascript" src="static/js/cornerstoneWADOImageLoader1.min.js"></script> -->
+<script type="text/javascript" src="static/js/cornerstoneWADOImageLoader2.js"></script>
+<script type="text/javascript" src="static/js/cornerstoneFileImageLoader.js"></script>
+<script type="text/javascript" src="static/js/cornerstoneWebImageLoader.min.js"></script>
+<script type="text/javascript" src="static/js/jpx.min.js"></script>
+<script type="text/javascript" src="static/js/cornerstoneMath.js"></script>
+<!-- <script type="text/javascript" src="static/js/cornerstoneTools2.min.js"></script> -->
+<!-- <script type="text/javascript" src="static/js/controller.js"></script> -->
+
+<!-- <script src="static/node_modules/cornerstone-tools/dist/cornerstoneTools.js"></script> -->
+<script src="static/node_modules/cornerstone-math/dist/cornerstoneMath.js"></script>
+<!-- <script src="static/node_modules/cornerstone-tools/dist/cornerstoneTools.js"></script> -->
+<!-- <script src="static/node_modules/cornerstone-tools/dist/cornerstoneTools.js"></script> -->
+<!-- <script src="https://cdn.jsdelivr.net/npm/cornerstone-tools@next"></script> -->
+
+
+<script type='text/javascript'>
+
+
+  $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
+
+  // var current_xy_image;
+  // var current_xz_image;
+  // var current_yz_image;
+  var zoomScale = 1
+  var xyxShift = 0, xyyShift = 0, xzxShift = 0, xzzShift = 0, yzyShift = 0, yzzShift = 0; 
+  var xyxVal=0, xyyVal=0, xzxVal=0, xzzVal=0, yzyVal=0, yzzVal=0; 
+  // var AR = image_aspect_ratio[0]/image_aspect_ratio[2]
+  var AR, spacings
+
+  // console.log(AR)
+ 
+
+
+ function _initialize(){
+  // cornerstoneTools.init();
+  cornerstoneWebImageLoader.external.cornerstone = cornerstone;
+  cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+  cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+  // cornerstoneTools.external.cornerstoneMath = cornerstoneMath;
+  // cornerstoneTools.external.cornerstone = cornerstone;
+  // cornerstoneTools.external.Hammer = Hammer;
+  cornerstoneWADOImageLoader.webWorkerManager.initialize({
+    maxWebWorkers: navigator.hardwareConcurrency || 1,
+    startWebWorkersOnDemand: true,
+    taskConfiguration: {
+      decodeTask: {
+        initializeCodecsOnStartup: false,
+        usePDFJS: false,
+        strict: false,
+      },
+    },
+  });
+}
+  function trackTransforms(ctx){
+      var svg = document.createElementNS("http://www.w3.org/2000/svg",'svg');
+      var xform = svg.createSVGMatrix();
+      ctx.getTransform = function(){ return xform; };
+
+      var savedTransforms = [];
+      var save = ctx.save;
+      ctx.save = function(){
+          savedTransforms.push(xform.translate(0,0));
+          return save.call(ctx);
+      };
+    
+      var restore = ctx.restore;
+      ctx.restore = function(){
+        xform = savedTransforms.pop();
+        return restore.call(ctx);
+              };
+
+      var scale = ctx.scale;
+      ctx.scale = function(sx,sy){
+        xform = xform.scaleNonUniform(sx,sy);
+        return scale.call(ctx,sx,sy);
+              };
+    
+      var rotate = ctx.rotate;
+      ctx.rotate = function(radians){
+          xform = xform.rotate(radians*180/Math.PI);
+          return rotate.call(ctx,radians);
+      };
+    
+      var translate = ctx.translate;
+      ctx.translate = function(dx,dy){
+          xform = xform.translate(dx,dy);
+          return translate.call(ctx,dx,dy);
+      };
+    
+      var transform = ctx.transform;
+      ctx.transform = function(a,b,c,d,e,f){
+          var m2 = svg.createSVGMatrix();
+          m2.a=a; m2.b=b; m2.c=c; m2.d=d; m2.e=e; m2.f=f;
+          xform = xform.multiply(m2);
+          return transform.call(ctx,a,b,c,d,e,f);
+      };
+    
+      var setTransform = ctx.setTransform;
+      ctx.setTransform = function(a,b,c,d,e,f){
+          xform.a = a;
+          xform.b = b;
+          xform.c = c;
+          xform.d = d;
+          xform.e = e;
+          xform.f = f;
+          return setTransform.call(ctx,a,b,c,d,e,f);
+      };
+    
+      var pt  = svg.createSVGPoint();
+      ctx.transformedPoint = function(x,y){
+          pt.x=x; pt.y=y;
+          return pt.matrixTransform(xform.inverse());
+      }
+    }
+
+  function redraw(source, canvas_id){
+        const canvas = document.getElementById(canvas_id);
+        const ctx = canvas.getContext("2d");
+        trackTransforms(ctx)
+        var p1 = ctx.transformedPoint(0,0);
+        var p2 = ctx.transformedPoint(canvas.width,canvas.height);
+        ctx.clearRect(p1.x,p1.y,p2.x-p1.x,p2.y-p1.y);
+
+        ctx.save();
+        ctx.setTransform(1,0,0,1,0,0);
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.restore();
+
+        var img = new Image();
+        img.src = source;
+        img.onload = function(){ 
+          ctx.drawImage(img, 0, 0);
+
+        }
+        }
+
+  var patients, xy_image_ids, xz_image_ids, yz_image_ids, patient_index, point_index;
+  var XYImageIndex = 0, XZImageIndex = 256, YZImageIndex = 256;
+  var len_xyx = 512, len_xyy = 512;
+  var len_xzz = 246, len_yzz = 246;
+  var len_xzx = 450, len_yzy = 450;
+  var remove_status = false
+
+  _initialize()
+
+
+  $(document).ready(function() {
+
+    var patient_dic = {};
+    var display_div = document.getElementById("display");
+    display_div.style.display = "none"
+    document.getElementById('remove_point').disabled = true;
+
+    function sort_array(array){
+      // str.split(" ");
+      // my_array[my_array.length - 1];
+        var arrayIndex = Array.from(array, x => x.split("/")) 
+        arrayIndex = Array.from(arrayIndex, x => x[x.length - 1]) 
+        arrayIndex = Array.from(arrayIndex, x => x.replace(/\D/g,''))     
+        var zippedArray = arrayIndex.map(function(e, i) {
+              return [array[i], e];
+        });         
+        sortedIndex = arrayIndex.sort((a, b) => a - b)
+        var sortedArray = []
+        sortedIndex.forEach(function(key) {
+          var found = false;
+          zippedArray = zippedArray.filter(function(item) {
+        if(!found && item[1] == key) {
+            sortedArray.push(item[0]);
+            found = true;
+            return false;
+        } else 
+            return true;
+    })
+})
+      return sortedArray
+    }
+
+    function loadingMessge(canvas){
+      var ctx = document.getElementById(canvas).getContext("2d"); 
+      ctx.beginPath();
+      ctx.rect(0, 0, 512, 512);
+      ctx.fillStyle = "#bed4e9";
+      ctx.fill();
+      ctx.fillStyle = "#081018";
+      ctx.font = "20px Arial";
+      ctx.fillText("Loading...", 20, 30); 
+    }
+    function load_data(patient_index){
+      // document.getElementById("status").style.display = "block";
+      loadingMessge('Canvas_xy_overlay')
+      loadingMessge('Canvas_xz_overlay')
+      loadingMessge('Canvas_yz_overlay')
+      $('#save_status').removeClass("label-danger");
+      $('#save_status').removeClass("label-success");
+      $('#save_status').addClass("label-other");
+      $('#save_status').html(`No point captured`)
+      // $('#status').html(`LOADING!`) 
+ 
+
+
+        $.getJSON($SCRIPT_ROOT + '/_load_patient_data', {
+          patientId: patients[patient_index],
+          key: $('#key').val(),
+        }, function(data) {
+            xy_image_ids = data.xy_files
+            xz_image_ids = data.xz_files
+            yz_image_ids = data.yz_files
+            spacings = data.ct_spacings
+            // xy_image_ids = sort_array(data.xy_files)
+            // xz_image_ids = sort_array(data.xz_files)
+            // yz_image_ids = sort_array(data.yz_files)
+            // console.log(patients[patient_index])
+            // console.log(spacings)
+            // console.log(xz_image_ids)
+            // console.log(sort_array(xz_image_ids))
+            // console.log(sort_array(xy_image_ids))
+            // console.log(yz_image_ids)
+        //     cornerstone.events.addEventListener('cornerstoneimageloadprogress', function(event) {
+        // const eventData = event.detail;
+        // 
+        // });
+        loadViews()
+        // $('#status').removeClass("label-other");
+        // $('#status').removeClass("label-success");
+        // $('#status').addClass("label-warning");
+        // $('#status').html(`Warning: Press <i class="fas fa-sync"></i> for Reload!`)
+          });
+        // document.getElementById("status").style.display = "none";
+      };
+
+    function onImageRendered() {
+    element = document.getElementById("XYFrame")
+    viewport = cornerstone.getViewport(element);
+    document.getElementById('topleft').textContent = "P: "+ (patient_index+1) + "/ SIDE: " + XYImageIndex
+    document.getElementById('topright').textContent = "Points:" + patient_dic[patient_index]['points'].length;
+    document.getElementById('bottomleft').textContent = "WW/WL:" + Math.round(viewport.voi.windowWidth) + "/" + Math.round(viewport.voi.windowCenter);
+    document.getElementById('bottomright').textContent = "Zoom:" + viewport.scale.toFixed(2);
+    document.getElementById('XZLabel').textContent = "#: "+ XZImageIndex
+    document.getElementById('YZLabel').textContent = "#: "+ YZImageIndex
+          }
+function updateView(frame, imageIndex){
+  const element = document.getElementById(frame)
+  if (frame == 'XYFrame'){
+      var url = xy_image_ids[imageIndex]
+     
+  }
+  else if (frame == 'XZFrame'){
+      var url = xz_image_ids[imageIndex]
+  }
+  else if (frame == 'YZFrame'){
+      var url = yz_image_ids[imageIndex]
+  }
+  // console.log(frame + '  ' + imageIndex)
+  // console.log([XYImageIndex, XZImageIndex, YZImageIndex])
+
+
+  cornerstone.loadAndCacheImage(url).then(function(image) {
+            cornerstoneWADOImageLoader.wadouri.dataSetCacheManager.unload(url);
+            const viewport = cornerstone.getViewport(element);
+            if(viewport==undefined){
+            // $('#status').removeClass("label-other");
+            // $('#status').removeClass("label-success");
+            // $('#status').addClass("label-warning");
+            // $('#status').html(`Warning: Press <i class="fas fa-sync"></i> for Reload!`)
+
+            document.getElementById("reload").style.display = "block";
+
+          }
+          else {
+            // $('#status').removeClass("label-other");
+            // $('#status').removeClass("label-warning");
+            // $('#status').addClass("label-success");
+            // // document.getElementById("status").style.display = "none";
+            // $('#status').html(`Patient ${patient_index} is loaded.`);
+            // console.log(image.minPixelValue)
+            // console.log(image.maxPixelValue)
+            // console.log(viewport.voi.windowCenter)
+            // console.log(viewport.voi.windowWidth)
+            // console.log(viewport)
+            // console.log()
+             
+          }
+          // console.log(image)
+  cornerstone.displayImage(element, image, viewport);          
+ });
+}
+
+function check_patient_index(patient_index){
+  // console.log(patients.length)
+      for (var i = 0; i < patients.length; i++) {
+          $('#'+i).removeClass("listSel");
+          $('#'+i).addClass("listNoSel");
+        }
+          $('#'+patient_index).removeClass("listNoSel");
+          $('#'+patient_index).addClass("listSel");
+}
+
+
+function fillCommentBox(point_index){
+      var comment_div = document.getElementById("comment");
+      var met_comment = patient_dic[patient_index]['comments'][point_index]
+      // comment_div.innerHTML = met_comment;
+      comment_div.value = met_comment;
+      
+      xyxVal = patient_dic[patient_index]['points'][point_index][0]; 
+      xyyVal = patient_dic[patient_index]['points'][point_index][1];
+      XYImageIndex = patient_dic[patient_index]['points'][point_index][2];    
+      xzxVal = xyxVal
+      xzzVal = XYImageIndex/AR
+      XZImageIndex = xyyVal
+      yzyVal = xyyVal
+      yzzVal = XYImageIndex/AR
+      YZImageIndex = xyxVal
+
+      updateView('XYFrame', XYImageIndex)
+      renderVerLine('Canvas_xy_overlay', xyxVal, xyyVal);
+      renderHorLine('Canvas_xy_overlay',xyxVal, xyyVal);
+      $('#xyx_slider').val(xyxVal)
+      $('#xyy_slider').val(xyyVal)
+      
+      updateView('XZFrame', XZImageIndex)
+      renderVerLine('Canvas_xz_overlay', xzxVal, xzzVal);
+      renderHorLine('Canvas_xz_overlay',xzxVal, xzzVal);
+      $('#xzx_slider').val(xzxVal)
+      $('#xzz_slider').val(xzzVal)
+
+
+      updateView('YZFrame', YZImageIndex)
+      renderVerLine('Canvas_yz_overlay', yzyVal, yzzVal);
+      renderHorLine('Canvas_yz_overlay',yzyVal, yzzVal);
+      $('#yzy_slider').val(yzyVal)
+      $('#yzz_slider').val(yzzVal)
+
+
+
+      for (var i = 0; i < patient_dic[patient_index]['points'].length; i++) {
+          $('#point_'+i).removeClass("success");
+          $('#point_'+i).addClass("default");
+        }
+          $('#point_'+point_index).removeClass("default");
+          $('#point_'+point_index).addClass("success");
+
+
+}
+    function fillPointTable(patient_index){
+                var pointsBoard = document.getElementById("met_points");
+                var patient_span = document.getElementById("patient_"+patient_index) 
+                patient_span.innerHTML = patient_dic[patient_index]['points'].length + ' mets'
+
+                pointsBoard.innerHTML = "";
+
+                for (var i = 0; i < patient_dic[patient_index]['points'].length; i++) {
+                
+                met_point = patient_dic[patient_index]['points'][i]
+                
+                var point_div = document.createElement("DIV");
+                var idButton = document.createElement('button');
+                
+                // var scoreSpan = document.createElement("SPAN");
+                var buttonText = document.createTextNode(met_point);
+                idButton.setAttribute("id", "point_"+i);
+                // var scoreText = document.createTextNode(prev_points);
+                idButton.onclick = function() {
+                    loadViews()
+                    remove_status = true
+                    document.getElementById('remove_point').disabled = false;
+                    document.getElementById('comment').disabled = false;
+                    point_index = Number(this.id.split("_")[1])
+                    fillCommentBox(point_index)
+                    $('#status').html(`Patient `+ patient_index +` point `+ (1+point_index))
+
+                };
+                idButton.setAttribute("class", "txtbtn default");
+                // scoreSpan.setAttribute("id", "p_"+i);
+                idButton.appendChild(buttonText);
+                
+                // scoreSpan.appendChild(scoreText);
+                point_div.appendChild(idButton);
+                
+                // patientNote.appendChild(scoreSpan);
+                pointsBoard.appendChild(point_div);
+                } 
+                }
+
+    function loadViews(){
+      remove_status = false
+      // $("#metCenters").detach(); 
+      XYImageIndex = 0;
+      XZImageIndex = 256;
+      YZImageIndex = 256;
+      zoomScale = 1;
+      xyxShift = 0;
+      xyyShift = 0; 
+      xzxShift = 0; 
+      xzzShift = 0; 
+      yzyShift = 0; 
+      yzzShift = 0; 
+      xyxVal=0; 
+      xyyVal=0; 
+      xzxVal=0; 
+      xzzVal=0; 
+      yzyVal=0; 
+      yzzVal=0; 
+      // image_aspect_ratio = {{image_aspect_ratio}};
+      // AR = image_aspect_ratio[0]/image_aspect_ratio[2];
+      // console.log(AR)
+      AR = spacings[0]/spacings[2]
+      // console.log('spacings')
+      // console.log(spacing[0])
+      // console.log(spacing[0])
+      // console.log(AR)
+
+      // console.log()
+      XYImageIndex = 0, XZImageIndex = 256, YZImageIndex = 256;
+      len_xyx = 512, len_xyy = 512;
+      len_xzz = 246, len_yzz = 246;
+      len_xzx = 450, len_yzy = 450;
+
+      // _initialize()
+
+
+
+      // document.getElementById('undo').className = 'btn fas fa-undo darkgray';
+      document.getElementById('undo').disabled = true;
+
+      var table = document.getElementById("metCenters");
+      
+      // patient_dic[patient_index]['points']
+
+      fillPointTable(patient_index)
+
+
+
+      XYelement = document.getElementById('XYFrame') 
+      XZelement = document.getElementById('XZFrame')
+      YZelement = document.getElementById('YZFrame')
+      
+      cornerstone.enable(XYelement);
+      cornerstone.enable(XZelement);
+      cornerstone.enable(YZelement);
+
+      try {
+      cornerstone.reset(XYelement)
+      cornerstone.reset(XZelement)
+      cornerstone.reset(YZelement)
+      cornerstone.updateImage(XYelement)
+      cornerstone.updateImage(XZelement)
+      cornerstone.updateImage(YZelement)
+    } catch(error){
+
+    }
+
+
+      XYviewport = cornerstone.getViewport(XYelement)
+      XZviewport = cornerstone.getViewport(XZelement)
+      YZviewport = cornerstone.getViewport(YZelement)
+
+      // xy_image_ids.forEach(imageId => cornerstone.loadAndCacheImage(imageId));
+      // xz_image_ids.forEach(imageId => cornerstone.loadAndCacheImage(imageId));
+      // yz_image_ids.forEach(imageId => cornerstone.loadAndCacheImage(imageId));
+
+      updateView('XYFrame', 0)
+      updateView('XZFrame', 256)
+      updateView('YZFrame', 256)
+      renderVerLine('Canvas_xy_overlay', 256, 256);
+      renderHorLine('Canvas_xy_overlay',256,256)
+      
+      renderVerLine('Canvas_xz_overlay', 256, 0);
+      renderHorLine('Canvas_xz_overlay',256,0)
+      
+      renderVerLine('Canvas_yz_overlay', 256, 0);
+      renderHorLine('Canvas_yz_overlay',256,0)
+      $('#xyx_slider').val(256)
+      $('#xzx_slider').val(256)
+      $('#xyy_slider').val(256)
+      $('#yzy_slider').val(256)
+      $('#xzz_slider').val(0)
+      $('#yzz_slider').val(0)
+
+
+      if(XYviewport!=undefined && XZviewport!=undefined && YZviewport!=undefined){
+
+
+        const XYimage = cornerstone.getImage(XYelement); 
+        const XZimage = cornerstone.getImage(XZelement); 
+        const YZimage = cornerstone.getImage(YZelement); 
+        onImageRendered()
+
+        XYviewport.scale = 1;
+        XZviewport.scale = 1;
+        YZviewport.scale = 1;
+        XYviewport.translation.x = (XYimage.columns-len_xyx)/2.0;
+        XYviewport.translation.y = (XYimage.height-len_xyy)/2.0; 
+        XZviewport.translation.x = (XZimage.columns-len_xzx)/2.0;
+        XZviewport.translation.y = (XZimage.height-len_xzz)/2.0;  
+        YZviewport.translation.x = (YZimage.columns-len_yzy)/2.0;
+        YZviewport.translation.y = (YZimage.height-len_yzz)/2.0;  
+        cornerstone.setViewport(XYelement, XYviewport);
+        cornerstone.setViewport(XZelement, XZviewport);
+        cornerstone.setViewport(YZelement, YZviewport);
+        // console.log('rescaled')
+        _init_WL(XYelement)
+      }   
+      
+         
+  };
+   document.getElementById('reload').addEventListener('click', function (e) {
+    loadViews()
+    $('#status').html('')
+    $('#status').removeClass("label-other");
+    $('#status').removeClass("label-danger");
+    $('#status').removeClass("label-warning");
+    $('#status').addClass("label-success");
+    $('#status').html(patients.length +` file loaded!`)
+    $('#reload').removeClass("orange");
+    $('#reload').addClass("green");
+    // XYelement = document.getElementById('XYFrame')
+    // XZelement = document.getElementById('XZFrame')
+    // YZelement = document.getElementById('YZFrame')
+    // XYviewport = cornerstone.getViewport(XYelement)
+    // XZviewport = cornerstone.getViewport(XZelement)
+    // YZviewport = cornerstone.getViewport(YZelement)
+    // XYviewport.scale = 1;
+    // XZviewport.scale = 1;
+    // YZviewport.scale = 1;
+    // XYviewport.translation.x = 0;
+    // XYviewport.translation.y = 0; 
+   });
+
+            // 
+      // };
+    // function loadMainView(frame, urls) {     
+        // const scheme = 'wadouri'
+        // const element = document.getElementById(frame);
+        // cornerstone.enable(element);
+        // cornerstoneTools.init();
+         // var stack = {
+         //        currentImageIdIndex : 0,
+         //        imageIds: urls
+         //      .map(seriesImage => `${scheme}:${seriesImage}`),
+         //    };
+        // var XYImageIndex = 0
+        // updateView(element, frame, XYImageIndex)
+        
+        // var viewport = cornerstone.getViewport(element);
+        // while (viewport === undefined){
+        //   const viewport = cornerstone.getViewport(element);
+          // console.log(viewport)
+        // }
+        
+
+        // cornerstone.setViewport(element, viewport);
+
+        
+        // stack.imageIds.forEach(imageId => cornerstone.loadAndCacheImage(imageId));
+
+
+  // cornerstoneWADOImageLoader.wadouri.dataSetCacheManager.load(urls[0], cornerstoneWADOImageLoader.internal.xhrRequest).then(function(dataSet) {
+  //           stack.imageIds.forEach(imageId => cornerstone.loadAndCacheImage(imageId));
+  //           cornerstone.loadAndCacheImage(stack.imageIds[0]).then(function(image) {
+  //               cornerstoneWADOImageLoader.wadouri.dataSetCacheManager.unload(urls[0]);
+  //               // cornerstoneTools.addStackStateManager(element, ['stack']);
+  //               // cornerstoneTools.addToolState(element, 'stack', stack);
+  //               cornerstone.displayImage(element, image);
+
+  //               // if(loaded === false) {
+  //               //   const apiTool = cornerstoneTools.PanTool;
+  //               //   // console.log(apiTool)
+  //               //   cornerstoneTools.addTool(apiTool);
+  //               //   cornerstoneTools.setToolActive('Pan', { mouseButtonMask: 1 });
+  //               //   cornerstoneTools.addTool(cornerstoneTools.StackScrollMouseWheelTool) 
+  //               //   cornerstoneTools.setToolActive('StackScrollMouseWheel', {})
+  //               //   loaded = true;
+  //               // }
+  //           }, function(err) {
+  //               alert(err);
+  //           });
+  //       });
+
+    // };
+
+    document.getElementById('key_check').addEventListener('click', function (e) {
+      // $('#key').val("1001")
+      $.getJSON($SCRIPT_ROOT + '/_load_patients', {
+                  key: $('#key').val(),
+              }, function(data) {
+                  patient_index = 0
+                  patients = data.patients
+                  stored_points =  data.stored_points
+                  if (patients === undefined || patients.length == 0) 
+                      {
+                        $('#status').removeClass("label-other");
+                        $('#status').addClass("label-danger");
+                        $('#status').html(`Info: Access Denied!`)
+                       }
+                  else if (patients.length == 1 && patients[0] == 'DONE') 
+                      {
+                        $('#status').removeClass("label-other");
+                        $('#status').addClass("label-success");
+                        $('#status').html(`Thank You: No more files to process!`)
+                       }
+                  else{
+                        document.getElementById("login").style.display = "none";
+                        $('#status').removeClass("label-other");
+                        $('#status').removeClass("label-success");
+                        $('#status').addClass("label-warning");
+                        $('#status').html(`Warning: Press <i class="fas fa-sync"></i> for Reload!`)
+                        load_data(0)
+                        check_patient_index(0)
+                        display_div.style.display = "block"
+                      }
+
+                for (var i = 0; i < patients.length; i++) {
+                // console.log(patients[i])
+                // console.log(scored_patients[i])
+                if (patients[i] in stored_points){
+                    var prev_points =  stored_points[patients[i]]['points']
+                    var prev_comments =  stored_points[patients[i]]['comments']
+                }
+                else {
+                 var prev_points = []  
+                 var prev_comments = [] 
+                }
+                patient_dic[i] = {
+                    'file_name': patients[i],
+                    'id': i,
+                    'points' : prev_points,
+                    'comments' : prev_comments}
+
+                var scoreBoard = document.getElementById("patients_list")
+                var patientNote = document.createElement("DIV");
+                var idButton = document.createElement('button');
+                var spaceSpan = document.createElement("SPAN");
+                var scoreSpan = document.createElement("SPAN");
+                var buttonText = document.createTextNode('P '+(i+1));
+                var spaceText = document.createTextNode('  :  ');
+                var scoreText = document.createTextNode(prev_points.length + ' mets');
+                idButton.setAttribute("id", i);
+                idButton.onclick = function() {
+                    patient_index = Number(this.id); 
+                    $('#status').html(`Patient `+ (patient_index+1) +` is loaded!`)
+                    document.getElementById("comment").value = ""
+                    // load_note(patient_index);
+                    load_data(patient_index)
+                    fillPointTable(patient_index)
+                    check_patient_index(patient_index)
+
+                };
+                idButton.setAttribute("class", "listNoSel");
+                scoreSpan.setAttribute("id", "patient_"+i);
+                idButton.appendChild(buttonText);
+                spaceSpan.appendChild(spaceText);
+                scoreSpan.appendChild(scoreText);
+                patientNote.appendChild(idButton);
+                patientNote.appendChild(spaceSpan);
+                patientNote.appendChild(scoreSpan);
+                scoreBoard.appendChild(patientNote);
+                } 
+                fillPointTable(0)
+            });
+        });
+    
+
+      document.getElementById('next_file').addEventListener('click', function (e) {
+          patient_index += 1
+          $('#status').html(`Patient `+ (patient_index+1) +` is loaded!`)
+          document.getElementById('prev_file').disabled = false;
+          if (patient_index+1 == patients.length){
+            document.getElementById('next_file').disabled = true;
+        }
+          load_data(patient_index)
+          check_patient_index(patient_index)
+          // document.getElementById("reload").className = "btn fas fa-sync orange";
+      });
+
+      document.getElementById('prev_file').addEventListener('click', function (e) {
+        patient_index -= 1
+        $('#status').html(`Patient `+ patient_index +` is loaded!`)
+        document.getElementById('next_file').disabled = false;
+        if (patient_index == 0){
+          document.getElementById('prev_file').disabled = true;
+          }
+
+        load_data(patient_index)
+        check_patient_index(patient_index)
+
+        // document.getElementById("reload").className = "btn fas fa-sync orange";
+      });
+
+
+
+    // setup handlers before we display the image
+
+
+
+    // function updateView(imageIndex) {
+    //   return cornerstone.loadAndCacheImage(imageIds[imageIndex]).then(function(image) {
+    //                 currentImageIndex = imageIndex;
+    //                 const viewport = cornerstone.getViewport(element);
+    //                 // console.log(viewport)
+    //                 cornerstone.displayImage(element, image, viewport);
+    //             });
+    //   };
+
+
+
+        // var element = $('#dicomImage').get(0);
+        // const elementXY = document.getElementById('dicomUrl');
+        // cornerstone.enable(elementXY);
+        
+        // let currentImageIndex = 0;
+        // var imageIds = [];
+        
+
+
+
+// const element = document.getElementById('dicomUrl');
+// var status = cornerstoneTools.getToolState(element, 'stack')
+// console.log(status)
+
+
+    
+function _init_WL(element){
+  const viewport = cornerstone.getViewport(element);
+  const image = cornerstone.getImage(element);
+  // console.log(image)
+  // console.log(viewport)
+  // console.log(image.minPixelValue)
+  // console.log(image.maxPixelValue)
+  // console.log(viewport.voi.windowCenter)
+  // console.log(viewport.voi.windowWidth)
+  document.getElementById("winCenter").min = image.minPixelValue
+  document.getElementById("winCenter").max = image.maxPixelValue
+  document.getElementById("winCenter").value =  viewport.voi.windowCenter 
+  document.getElementById("winWidth").min =  image.minPixelValue
+  document.getElementById("winWidth").max =  image.maxPixelValue
+   document.getElementById("winWidth").value =  viewport.voi.windowWidth
+  $('#c_val').html(viewport.voi.windowCenter)
+  $('#w_val').html(viewport.voi.windowWidth)
+  onImageRendered()
+  // console.log(viewport)
+
+}
+// document.getElementById('render').addEventListener('click', function (e) {
+
+// });
+
+
+document.getElementById("winCenter").oninput = function() {
+    const elementXY =  document.getElementById('XYFrame');
+    const viewport = cornerstone.getViewport(elementXY);
+    // var value = (this.value-this.min)/(this.max-this.min)*100
+    // this.style.background = 'linear-gradient(to right, white 0%, #fff ' + value + '%, #82CFD0 ' + value + '%, #82CFD0 100%)'
+    // if (this.value > Number($('#winWidth').val())){
+    //   this.value  = $('#winWidth').val()
+    // }
+    $('#c_val').html(this.value)
+    // $('#w_val').html($('#winWidth').val())
+     viewport.voi.windowCenter = this.value;
+     cornerstone.setViewport(elementXY, viewport);
+     onImageRendered()
+  };
+
+document.getElementById("winWidth").oninput = function() {
+          // var value = (this.value-this.min)/(this.max-this.min)*100
+          // this.style.background = 'linear-gradient(to right, #82CFD0 0%, #82CFD0 ' + value + '%, #fff ' + value + '%, white 100%)'
+          //  if (this.value < Number($('#winCenter').val())){
+          //   this.value  = $('#winCenter').val()
+          // }
+          $('#w_val').html(this.value)
+          // $('#c_val').html($('#winCenter').val())
+          const elementXY =  document.getElementById('XYFrame');
+          const viewport = cornerstone.getViewport(elementXY);
+          // viewport.voi.windowCenter = Number($('#winWidth').val())+(this.value+this.value)/2.0;
+           viewport.voi.windowWidth = this.value;
+
+          cornerstone.setViewport(elementXY, viewport);
+          onImageRendered()
+        };
+
+
+        // console.log(elementXY)
+        // console.log(imagePromise)
+        // console.log(eventData.viewport.voi.windowWidth)
+        // console.log(eventData.viewport.voi.windowCenter)
+        // console.log(eventData.viewport.voi.windowMin)
+        // console.log(eventData.viewport.voi.windowMax)
+        // elementXY.addEventListener('cornerstoneimagerendered', onImageRendered);
+        // onImageRendered()
+document.getElementById('update_comment').addEventListener('click', function (e) {
+var met_comment = document.getElementById("comment").value;
+if (remove_status == true){
+patient_dic[patient_index]['comments'][point_index] = met_comment
+$('#status').html(`Comment updated for point [` + patient_dic[patient_index]['points'][point_index]`]`)
+fillPointTable(patient_index)
+}
+else{
+patient_dic[patient_index]['points'].push([0, 0, 0])
+patient_dic[patient_index]['comments'].push(met_comment)
+$('#status').html(`New comment added for point [0, 0, 0]` )
+fillPointTable(patient_index)     
+}
+submit_points(patient_dic) 
+})
+
+function submit_points(patient_dic){
+  $.ajax({
+  type: "POST",
+  contentType: "application/json; charset=utf-8",
+  url: "/_post_patient_dic",
+  data: JSON.stringify({key:$('#key').val(), patient_dic:patient_dic}),
+  success: function (data) {
+    console.log(data.status);
+  },
+  dataType: "json"
+});
+ $('#save_status').removeClass("label-other");
+  $('#save_status').removeClass("label-danger");
+  $('#save_status').addClass("label-success");
+  $('#save_status').html(` Successfuly Saved.`)
+}
+
+document.getElementById('remove_point').addEventListener('click', function (e)
+  {
+if(remove_status==true){
+  patient_dic[patient_index]['points'].splice(point_index, 1)
+  patient_dic[patient_index]['comments'].splice(point_index, 1)
+ fillPointTable(patient_index) 
+ remove_status =false
+ $('#status').html(`Point [` + patient_dic[patient_index]['points'][point_index] + `] is removed`)
+}
+else{
+  document.getElementById('remove_point').disabled = true;
+  $('#status').html(`No Point selected.`)
+}
+submit_points(patient_dic) 
+  })
+
+
+document.getElementById('undo').addEventListener('click', function (e)
+  {
+if (patient_dic[patient_index]['points'].length == 1){
+  // document.getElementById('undo').className = 'btn fas fa-undo darkgray';
+  document.getElementById('undo').disabled = true;
+}
+if (patient_dic[patient_index]['points'].length > 0){
+patient_dic[patient_index]['points'].pop();
+patient_dic[patient_index]['comments'].pop();
+fillPointTable(patient_index)
+}
+else{
+  $('#save_status').removeClass("label-danger");
+  $('#save_status').removeClass("label-success");
+  $('#save_status').addClass("label-other");
+  $('#save_status').html(`No Captured Points`)
+}
+
+
+  });
+document.getElementById('capture').addEventListener('click', function (e) {
+  document.getElementById('comment').disabled = true;
+  document.getElementById("next_tip").innerHTML = "unsaved points."
+  document.getElementById("prev_tip").innerHTML = "unsaved points."
+  document.getElementById('undo').disabled = false;
+
+  $('#save_status').removeClass("label-other");
+  $('#save_status').removeClass("label-success");
+  $('#save_status').addClass("label-danger");
+  $('#save_status').html(`Not Saved!`)
+
+  // document.getElementById('submit').className = 
+  // $("#submit").toggleClass('fa-edit fa-check-square');
+  // $("#submit").addClass('btn far fa-share-square');
+
+  // document.getElementById('prev_file').className = 'btn fas fa-chevron-left darkgray';
+  // document.getElementById('next_file').className = 'btn fas fa-chevron-right darkgray';
+  document.getElementById('prev_file').disabled = true;
+  document.getElementById('next_div').disabled = true;
+  // console.log(document.getElementById("submit").className)
+  document.getElementById('next_file').disabled = true;
+
+
+            // elementXY.style.width = '300px';
+            // elementXY.style.height = '300px';
+            // cornerstone.resize(elementXY);
+          // const xy_context = document.getElementById("Canvas_xy").getContext("2d");; 
+          // cornerstone.setTransform(1, 0, 0, 1, 0, 0);
+          // cornerstone.disable(elementXY);
+
+const element =  document.getElementById('XYFrame');
+const  viewport = cornerstone.getViewport(element);
+const prevScale =  viewport.scale
+
+x_capture = Math.round(256+(xyxVal-256)/viewport.scale-viewport.translation.x)
+y_capture = Math.round(256+(xyyVal-256)/viewport.scale-viewport.translation.y)
+z_capture = XYImageIndex;
+
+// console.log($('#xyx_slider').val() + "    " + zoomScale + "    " + xyxShift)
+var met_point = [x_capture, y_capture, z_capture]
+var met_comment = document.getElementById("comment").value;
+patient_dic[patient_index]['points'].push(met_point)
+patient_dic[patient_index]['comments'].push(met_comment)
+onImageRendered()
+fillPointTable(patient_index)  
+submit_points(patient_dic)   
+        });
+
+
+
+
+// };
+        function zoom(frame, scale){
+          const element =  document.getElementById(frame);
+          var  viewport = cornerstone.getViewport(element);
+          const prevScale =  viewport.scale
+          const newScale = scale/prevScale
+            viewport.scale = scale
+            cornerstone.setViewport(element, viewport);
+            viewport = cornerstone.getViewport(element);
+
+            if (frame=="XYFrame"){
+            const deltaX = (newScale-1)*(Number($('#xyx_slider').val())-256) ;
+            const deltaY = (newScale-1)*(Number($('#xyy_slider').val())-256);
+
+            // console.log(deltaX + '  ' + deltaY)
+            // console.log("shifyX: "+ viewport.translation.x)
+            // console.log("shifyY: "+ viewport.translation.y)
+            
+            cornerstone.setViewport(element, viewport);
+            viewport.translation.x -= deltaX/scale;
+            viewport.translation.y -= deltaY/scale;
+            xyxShift -= deltaX/scale 
+            xyyShift -= deltaY/scale 
+            // console.log("NshifyX: "+ viewport.translation.x)
+            // console.log("NshifyY: "+ viewport.translation.y)
+          }
+          if (frame=="XZFrame"){
+            const deltaX = (newScale-1)*(Number($('#xzx_slider').val())-225) ;
+            const deltaY = (newScale-1)*(Number($('#xzz_slider').val())-123);
+            // console.log(deltaX + '  ' + deltaY)
+            // console.log("shifyX: "+ viewport.translation.x)
+            // console.log("shifyY: "+ viewport.translation.y)          
+            cornerstone.setViewport(element, viewport);
+            viewport.translation.x -= deltaX/scale;
+            viewport.translation.y -= deltaY/scale;
+            xzxShift -= deltaX/scale 
+            xzzShift -= deltaY/scale 
+            // console.log("NshifyX: "+ viewport.translation.x)
+            // console.log("NshifyY: "+ viewport.translation.y)
+          }
+          if (frame=="YZFrame"){
+            const deltaX = (newScale-1)*(Number($('#yzy_slider').val())-225) ;
+            const deltaY = (newScale-1)*(Number($('#yzz_slider').val())-123);
+            // console.log(deltaX + '  ' + deltaY)
+            // console.log("shifyX: "+ viewport.translation.x)
+            // console.log("shifyY: "+ viewport.translation.y)
+            cornerstone.setViewport(element, viewport);
+            viewport.translation.x -= deltaX/scale;
+            viewport.translation.y -= deltaY/scale;
+            yzyShift -= deltaX/scale 
+            yzzShift -= deltaY/scale 
+            // console.log("NshifyX: "+ viewport.translation.x)
+            // console.log("NshifyY: "+ viewport.translation.y)
+          }
+            // xyxShift -= deltaX;
+            // xyyShift -= deltaY;
+            
+            cornerstone.setViewport(element, viewport);
+            onImageRendered()
+
+        }
+        
+document.getElementById('zoom_in').addEventListener('click', function (e) {
+          zoomScale *= 1.1
+          zoom('XYFrame', zoomScale)
+          zoom('XZFrame', zoomScale)
+          zoom('YZFrame', zoomScale)
+
+            // console.log(viewport)
+            // console.log(viewport.scale)
+          
+        });
+document.getElementById('zoom_out').addEventListener('click', function (e) {
+          zoomScale /= 1.1
+          zoom('XYFrame', zoomScale)
+          zoom('XZFrame', zoomScale)
+          zoom('YZFrame', zoomScale)
+            
+           // console.log(zoomScale)
+
+
+          
+        });
+
+ 
+          
+
+          function getCursorPosition(canvas, event) {
+          const rect = canvas.getBoundingClientRect()
+          const x = event.clientX - rect.left
+          const y = event.clientY - rect.top
+          // console.log("x: " + x + " y: " + y)
+            return [x,y]
+      };
+
+function center_frames(){
+   // const XZelement = document.getElementById('XZFrame');
+   // const YZelement = document.getElementById('YZFrame');
+   // var  XZviewport = cornerstone.getViewport(XZelement);
+   // var  YZviewport = cornerstone.getViewport(YZelement);
+   
+   
+   // xzxShift -= 225 - xzxVal
+   // xzzShift -= 123 - xzzVal
+   // XZviewport.translation.x += xzxShift;
+   // XZviewport.translation.y += xzzShift;
+
+
+}
+function setIndicator(frame, cursorPosition) {
+            
+  let thisX = cursorPosition[0];
+  let thisY = cursorPosition[1];
+
+  if (frame == 'XYFrame') {     
+
+  let prevX =  xyxVal;
+  let prevY =  xyyVal;
+  xyxVal = thisX;
+  xyyVal = thisY;
+  xzxVal += thisX-prevX
+  yzyVal += thisY-prevY
+
+
+  $("#xyx_slider").val(xyxVal);
+  $("#xyy_slider").val(xyyVal);
+  $("#xzx_slider").val(xzxVal);
+  $("#yzy_slider").val(yzyVal);          
+  // console.log('THIS IS MESS!') 
+  var mainCanvas = 'Canvas_xy_overlay'
+  renderVerLine('Canvas_xz_overlay', $("#xzx_slider").val(), $("#xzz_slider").val());
+  renderVerLine('Canvas_yz_overlay', $("#yzy_slider").val(), $("#yzz_slider").val());
+  // XZImageIndex = xyyVal-xyyShift
+  // YZImageIndex = xyxVal-xyxShift
+  
+
+  YZImageIndex = Math.round(((xyxVal+256*(zoomScale-1))/zoomScale)-xyxShift);
+  XZImageIndex = Math.round(((xyyVal+256*(zoomScale-1))/zoomScale)-xyyShift);
+  // console.log('>'+ XZImageIndex+ '  ' + YZImageIndex)
+  
+  updateView('XZFrame', XZImageIndex);
+  updateView('YZFrame', YZImageIndex);
+  center_frames()
+  
+  
+  // updateView(XZelement, 'XZframe', xyyVal-xyyShift)
+  }
+  else if (frame == 'XZFrame') {
+  let prevX =  xzxVal
+   // Number($("#xzx_slider").val());
+  let prevY =  xzzVal
+  // Number($("#xzz_slider").val());
+  xzxVal = thisX
+  xzzVal = thisY
+  xyxVal += thisX-prevX
+  yzzVal += thisY-prevY
+  
+  $("#xzx_slider").val(thisX);
+  $("#xzz_slider").val(thisY);
+  $("#xyx_slider").val(xyxVal);
+  $("#yzz_slider").val(yzzVal);
+  
+  var mainCanvas = 'Canvas_xz_overlay'
+  renderVerLine('Canvas_xy_overlay',  $("#xyx_slider").val(), $("#xyy_slider").val());
+  renderHorLine('Canvas_yz_overlay',   $("#yzy_slider").val(), $("#yzz_slider").val());
+  
+  XYImageIndex = Math.round((((xzzVal+123*(zoomScale-1))/zoomScale)-xzzShift)*AR);
+  YZImageIndex = Math.round(((xzxVal+225*(zoomScale-1))/zoomScale)-xzxShift);
+  // console.log(XYImageIndex)
+  //
+  //  YZImageIndex = Math.round(((xyxVal+256*(zoomScale-1))/zoomScale)-xyxShift);
+  // XZImageIndex = Math.round(((xyyVal+256*(zoomScale-1))/zoomScale)-xyyShift);
+
+  updateView('XYFrame', XYImageIndex);
+  updateView('YZFrame', YZImageIndex);
+
+  // TODO:
+  
+  }
+ 
+else if (frame == 'YZFrame') {
+            let prevX =  yzyVal ;
+            // Number($("#yzy_slider").val());
+            let prevY =  yzzVal;
+            // Number($("#yzz_slider").val());
+
+              yzyVal = thisX
+              yzzVal = thisY
+              xyyVal += thisX-prevX
+              xzzVal += thisY-prevY
+            $("#yzy_slider").val(yzyVal);
+            $("#yzz_slider").val(yzzVal);
+            $("#xyy_slider").val(xyyVal);
+            $("#xzz_slider").val(xzzVal);
+            
+            var mainCanvas = 'Canvas_yz_overlay'
+            renderHorLine('Canvas_xy_overlay',   $("#xyx_slider").val(), $("#xyy_slider").val());
+            renderHorLine('Canvas_xz_overlay',   $("#xzx_slider").val(), $("#xzz_slider").val());
+            // console.log(Math.round((yzzVal-yzzShift)*AR))
+            // console.log(Number((yzzVal-yzzShift)*AR))
+
+            // TODO: FIX THIS NOT WORKING WHEN ZOOMED IN 
+
+            XYImageIndex = Math.round((((yzzVal+123*(zoomScale-1))/zoomScale)-yzzShift)*AR);
+            XZImageIndex = Math.round(((yzyVal+225*(zoomScale-1))/zoomScale)-yzyShift);
+            // console.log(XYImageIndex)
+  
+
+            //
+
+            updateView('XYFrame',XYImageIndex);
+            updateView('XZFrame',XZImageIndex);
+
+            // TODO: 
+            }
+            
+            renderVerLine(mainCanvas,  thisX, thisY);
+            renderHorLine(mainCanvas,  thisX , thisY);
+            onImageRendered()
+
+      };
+
+  
+      const overlay_element = document.getElementById('Canvas_xy_overlay'); 
+      overlay_element.addEventListener('dblclick', function(e){ 
+        document.getElementById('comment').disabled = false;
+        document.getElementById("comment").value = ""
+
+            let cursorPosition = getCursorPosition(overlay_element, e)
+            setIndicator('XYFrame', cursorPosition)
+                       
+            // console.log(element)
+            // console.log(xyyVal-xyyShift)
+            // let lastX = e.pageX;
+            // let lastY = e.pageY;
+          });
+      const overlay_XZ_element = document.getElementById('Canvas_xz_overlay'); 
+      overlay_XZ_element.addEventListener('dblclick', function(e){
+      document.getElementById('comment').disabled = false; 
+      document.getElementById("comment").value = ""
+            let cursorPosition = getCursorPosition(overlay_XZ_element, e)
+            setIndicator('XZFrame', cursorPosition)
+          });
+    
+      const overlay_YZ_element = document.getElementById('Canvas_yz_overlay'); 
+      overlay_YZ_element.addEventListener('dblclick', function(e){ 
+        document.getElementById('comment').disabled = false;
+        document.getElementById("comment").value = ""
+            let cursorPosition = getCursorPosition(overlay_YZ_element, e)
+            setIndicator('YZFrame', cursorPosition)
+          });
+
+
+
+function handel_mouse_event(overlay_element, frame, e){
+  document.getElementById('comment').disabled = false;
+    const element =  document.getElementById(frame);
+    const viewport = cornerstone.getViewport(element);
+
+    let cursorPosition = getCursorPosition(overlay_element, e)
+    let lastX = cursorPosition[0];
+    let lastY = cursorPosition[1];
+    const mouseButton = e.which;
+    function mouseMoveHandler(e) {
+      cursorPosition = getCursorPosition(overlay_element, e)
+      let thisX = cursorPosition[0];
+      let thisY = cursorPosition[1];
+      const deltaX = thisX - lastX;
+      const deltaY = thisY - lastY;
+      lastX = thisX;
+      lastY = thisY;
+
+    if (mouseButton === 2) {
+      // viewport.voi.windowWidth += (deltaX / viewport.scale);
+      // viewport.voi.windowCenter += (deltaY / viewport.scale);
+      // cornerstone.setViewport(element, viewport);
+
+    } 
+    else if (mouseButton === 1) {
+      viewport.translation.x += (deltaX / viewport.scale);
+      viewport.translation.y += (deltaY / viewport.scale);
+      cornerstone.setViewport(element, viewport);
+      
+      if (frame == 'XYFrame'){
+      xyxShift += deltaX/viewport.scale;
+      xyyShift += deltaY/viewport.scale;
+      xyxVal += deltaX 
+      xyyVal += deltaY
+      // console.log('xyxShift: '+ xyxShift + 'xyyShift: '+ xyyShift)
+      document.getElementById("xyx_slider").value = xyxVal
+      document.getElementById("xyy_slider").value = xyyVal
+        // document.getElementById("xyy_slider").value = parseInt(document.getElementById("xyy_slider").value)+parseInt(deltaY)
+        // document.getElementById("xyx_slider").value = parseInt(document.getElementById("xyx_slider").value)+parseInt(deltaX)
+
+        renderVerLine("Canvas_xy_overlay", xyxVal, xyyVal);
+        renderHorLine("Canvas_xy_overlay",  xyxVal , xyyVal);
+      }
+      
+      else if (frame == 'XZFrame'){
+      xzxShift += deltaX/viewport.scale;
+      xzzShift += deltaY/viewport.scale;
+      xzxVal += deltaX 
+      xzzVal += deltaY 
+      // console.log('xyxShift: '+ xyxShift + 'xyyShift: '+ xyyShift)
+      // console.log('xyxVal: '+ xzxVal + 'xyyVal: '+ xzzVal)
+
+        document.getElementById("xzx_slider").value = xzxVal
+        document.getElementById("xzz_slider").value = xzzVal
+        
+
+        // document.getElementById("xzz_slider").value = parseInt(document.getElementById("xzz_slider").value)+parseInt(deltaY)
+        // document.getElementById("xzx_slider").value = parseInt(document.getElementById("xzx_slider").value)+parseInt(deltaX)
+
+        renderVerLine("Canvas_xz_overlay", $("#xzx_slider").val(), $("#xzz_slider").val());
+        renderHorLine("Canvas_xz_overlay",  $("#xzx_slider").val() , $("#xzz_slider").val());
+      }
+      else if (frame == 'YZFrame'){
+      yzyShift += deltaX/viewport.scale;
+      yzzShift += deltaY/viewport.scale;
+      yzyVal += deltaX 
+      yzzVal += deltaY 
+      // console.log('xyxShift: '+ xyxShift + 'xyyShift: '+ xyyShift)
+        // document.getElementById("yzz_slider").value = parseInt(document.getElementById("yzz_slider").value)+parseInt(deltaY)
+        // document.getElementById("yzy_slider").value = parseInt(document.getElementById("yzy_slider").value)+parseInt(deltaX)
+
+       
+        document.getElementById("yzy_slider").value = yzyVal
+         document.getElementById("yzz_slider").value = yzzVal
+
+        renderVerLine("Canvas_yz_overlay", yzyVal, yzzVal);
+        renderHorLine("Canvas_yz_overlay",  yzyVal , yzzVal);
+      }
+
+
+      } 
+      else if (mouseButton === 3) {
+        // console.log(viewport.scale)
+        // zoomScale += (deltaY / 100)
+        // viewport.scale += (deltaY / 100);
+        // viewport.scale = zoomScale
+        // cornerstone.setViewport(element, viewport);
+      }
+    }
+
+    function mouseUpHandler() {
+      document.removeEventListener('mouseup', mouseUpHandler);
+      document.removeEventListener('mousemove', mouseMoveHandler);
+    }
+    document.addEventListener('mousemove', mouseMoveHandler);
+    document.addEventListener('mouseup', mouseUpHandler);
+
+};
+
+
+          overlay_element.addEventListener('mousedown', function (e) {
+            handel_mouse_event(overlay_element, 'XYFrame', e)
+            });
+
+           overlay_XZ_element.addEventListener('mousedown', function (e) {
+            handel_mouse_event(overlay_XZ_element, 'XZFrame', e)
+            });
+
+            overlay_YZ_element.addEventListener('mousedown', function (e) {
+            handel_mouse_event(overlay_YZ_element, 'YZFrame', e)
+            });
+
+function handel_wheel_event(overlay_element, frame,imageIndex, maxLen, e){
+                const element =  document.getElementById(frame);
+                const viewport = cornerstone.getViewport(element);
+                // Prevent page from scrolling
+                e.preventDefault();
+                // Firefox e.detail > 0 scroll back, < 0 scroll forward
+                // chrome/safari e.wheelDelta < 0 scroll back, > 0 scroll forward
+                if (e.wheelDelta < 0 || e.detail > 0) {
+                    if (imageIndex < maxLen-1) {
+                      imageIndex += 1
+                    }
+                } else {
+                    if (imageIndex > 0) {
+                      imageIndex -= 1
+                       
+                    }
+                }
+          updateView(frame, imageIndex)
+        if (frame == 'XYFrame'){
+          // xzzVal = imageIndex/AR*zoomScale
+
+          // const deltaX = (zoomScale-1)*(-225) ;
+          // const deltaY = (zoomScale-1)*(Number($('#xzz_slider').val())-123);
+          // console.log('--')
+          // console.log(AR)
+          xzzVal = xzzShift*zoomScale -123*(zoomScale-1) + imageIndex/AR*zoomScale
+          yzzVal = yzzShift*zoomScale -123*(zoomScale-1) + imageIndex/AR*zoomScale
+          $("#xzz_slider").val(xzzVal);
+          $("#yzz_slider").val(yzzVal); 
+          renderHorLine("Canvas_xz_overlay", $("#xzx_slider").val(), $("#xzz_slider").val())
+          renderHorLine("Canvas_yz_overlay", $("#yzy_slider").val(), $("#yzz_slider").val())
+        }
+        else if (frame == 'XZFrame'){
+
+          xyyVal = xyyShift*zoomScale -256*(zoomScale-1) + imageIndex*zoomScale
+          yzyVal = yzyShift*zoomScale -225*(zoomScale-1) + imageIndex*zoomScale
+
+          $("#xyy_slider").val(xyyVal);
+          $("#yzy_slider").val(yzyVal);
+          renderHorLine("Canvas_xy_overlay", $("#xyx_slider").val(), $("#xyy_slider").val())
+          renderVerLine("Canvas_yz_overlay", $("#yzy_slider").val(), $("#yzz_slider").val())
+        }
+        else if (frame == 'YZFrame'){
+
+          xyxVal = xyxShift*zoomScale -256*(zoomScale-1) + imageIndex*zoomScale
+          xzxVal = xzxShift*zoomScale -225*(zoomScale-1) + imageIndex*zoomScale
+
+    // YZImageIndex = Math.round(((xzxVal+225*(zoomScale-1))/zoomScale)-xzxShift);
+
+          $("#xyx_slider").val(xyxVal);
+          $("#xzx_slider").val(xzxVal);
+          renderVerLine("Canvas_xy_overlay", $("#xyx_slider").val(), $("#xyy_slider").val())
+          renderVerLine("Canvas_xz_overlay", $("#xzx_slider").val(), $("#xzz_slider").val())
+        }
+        return imageIndex;
+}
+
+const mouseWheelEvents = ['mousewheel', 'DOMMouseScroll'];
+    mouseWheelEvents.forEach(function(eventType) {
+          overlay_element.addEventListener(eventType, function (e) {
+          XYImageIndex = handel_wheel_event(overlay_element, 'XYFrame', XYImageIndex, xy_image_ids.length, e)
+          onImageRendered()
+        });
+          overlay_XZ_element.addEventListener(eventType, function (e) {
+          XZImageIndex = handel_wheel_event(overlay_XZ_element, 'XZFrame', XZImageIndex, xz_image_ids.length, e)
+          onImageRendered()
+        });
+          overlay_YZ_element.addEventListener(eventType, function (e) {
+          YZImageIndex = handel_wheel_event(overlay_YZ_element, 'YZFrame', YZImageIndex, yz_image_ids.length, e)
+          onImageRendered()
+        });
+          });
+
+        // var index = 100
+        // console.log(index);
+    // drag_frame('Canvas_xy', 'Canvas_xy_overlay')
+
+function renderHorLine(overlay, slider_val, value){
+    const xz_o = document.getElementById(overlay);
+    const xz_o_ctx = xz_o.getContext("2d");
+    xz_o_ctx.clearRect(0, 0, xz_o.width, xz_o.height);
+    xz_o_ctx.beginPath(); 
+    xz_o_ctx.setLineDash([15, 5, 3, 5]);
+    xz_o_ctx.strokeStyle = "#FF0000";
+    xz_o_ctx.lineWidth = 1;
+    xz_o_ctx.moveTo(0,value);
+    xz_o_ctx.lineTo(xz_o.width,value);
+    xz_o_ctx.stroke();
+    xz_o_ctx.beginPath(); 
+    xz_o_ctx.setLineDash([15, 5, 3, 5]);
+    xz_o_ctx.strokeStyle = "#FF0000";
+    xz_o_ctx.lineWidth = 1;
+    xz_o_ctx.moveTo(slider_val,0);
+    xz_o_ctx.lineTo(slider_val,xz_o.height);
+    xz_o_ctx.stroke();
+}
+
+function renderVerLine(overlay, value, slider_val){
+    const yz_o = document.getElementById(overlay);
+    const yz_o_ctx = yz_o.getContext("2d");
+    yz_o_ctx.clearRect(0, 0, yz_o.width, yz_o.height);
+    yz_o_ctx.beginPath(); 
+    yz_o_ctx.setLineDash([15, 5, 3, 5]);
+    yz_o_ctx.strokeStyle = "#FF0000";
+    yz_o_ctx.lineWidth = 1;
+    yz_o_ctx.moveTo(value,0);
+    yz_o_ctx.lineTo(value,yz_o.height);
+    yz_o_ctx.stroke();
+    yz_o_ctx.beginPath(); 
+    yz_o_ctx.setLineDash([15, 5, 3, 5]);
+    yz_o_ctx.strokeStyle = "#FF0000";
+    yz_o_ctx.lineWidth = 1;
+    yz_o_ctx.moveTo(0,slider_val);
+    yz_o_ctx.lineTo(yz_o.width,slider_val);
+    yz_o_ctx.stroke();
+
+}
+
+  XYelement =  document.getElementById('XYFrame');
+  XZelement =  document.getElementById('XZFrame');
+  YZelement =  document.getElementById('YZFrame');
+  
+  $("#xzz_slider").change(function(){
+     // $("#result").text($(this).val());
+    $("#yzz_slider").val($(this).val());
+    renderHorLine("Canvas_xz_overlay",   $("#xzx_slider").val() , $(this).val())
+    renderHorLine("Canvas_yz_overlay",  $("#yzy_slider").val(), $(this).val())
+    updateView('XYFrame', $(this).val());
+    });
+    
+  $("#yzz_slider").change(function(){
+    // $("#result").text($(this).val());
+    $("#xzz_slider").val($(this).val());
+    renderHorLine("Canvas_xz_overlay",  $("#xzx_slider").val(), $(this).val())
+    renderHorLine("Canvas_yz_overlay",  $("#yzy_slider").val() , $(this).val())
+    updateView('XYFrame', $(this).val()); 
+    });
+
+  $("#xyy_slider").change(function(){
+    // const canvas_id = "Canvas_xz";
+    // $("#result").text($(this).val());
+    $("#yzy_slider").val($(this).val());
+    renderHorLine("Canvas_xy_overlay",   $("#xyx_slider").val(), $(this).val())
+    renderVerLine("Canvas_yz_overlay" , $(this).val(),  $("#yzz_slider").val())
+    updateView('XZFrame', $(this).val()); 
+  });
+
+    $("#yzy_slider").change(function(){
+    // $("#result").text($(this).val());
+    $("#xyy_slider").val($(this).val());
+    renderHorLine("Canvas_xy_overlay", $("#xyx_slider").val() , $(this).val())
+    renderVerLine("Canvas_yz_overlay" , $(this).val(), $("#yzz_slider").val())
+    updateView('XZFrame', $(this).val()); 
+  });
+
+  $("#xyx_slider").change(function(){
+    // $("#result").text($(this).val());
+    $("#xzx_slider").val($(this).val());
+    renderVerLine("Canvas_xy_overlay" , $(this).val(), $("#xyy_slider").val())
+    renderVerLine("Canvas_xz_overlay", $(this).val(),  $("#xzz_slider").val() )
+    updateView('YZFrame', $(this).val()); 
+  });
+
+    $("#xzx_slider").change(function(){
+    $("#result").text($(this).val());
+    $("#xyx_slider").val($(this).val());
+    renderVerLine("Canvas_xy_overlay",  $(this).val(), $("#xyy_slider").val())
+    renderVerLine("Canvas_xz_overlay" , $(this).val(), $("#xzz_slider").val())
+    updateView('YZFrame', $(this).val()); 
+      });
+});
+</script>
+<style>
+  body {
+  font-family: Helvetica, Arial, sans-serif;
+}
+.slidecontainer {
+  width: 100%;
+}
+.slider {
+  -webkit-appearance: none;
+  height: 6px;
+  background: #ececec;
+  outline: none;
+  opacity: 1;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+}
+.slider:hover {
+  opacity: 1;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 25px;
+  background: #4CAF50;
+  cursor: pointer;
+}
+.slider::-moz-range-thumb {
+  width: 10px;
+  height: 25px;
+  background: #4CAF50;
+  cursor: pointer;
+}
+.verticalcontainer {
+  width: 100%;
+  height: 100%;
+}
+.vertical {
+  writing-mode: bt-lr;
+  -webkit-appearance: slider-vertical;
+  width: 10px;
+  background: #d3d3d3;
+  outline: none;
+  opacity: 0.7;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+  -webkit-transform: rotate(180deg);
+  -moz-transform: rotate(180deg);
+  -o-transform: rotate(180deg);
+  -ms-transform: rotate(180deg);
+  transform: rotate(180deg)
+}
+.vertical:hover {
+  opacity: 1;
+}
+.vertical::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 35px;
+  height: 10px;
+  background: #4CAF50;
+  cursor: pointer;
+}
+.vertical::-moz-range-thumb {
+  width: 35px;
+  height: 10px;
+  background: #4CAF50;
+  cursor: pointer;
+}
+
+input[type=range][orient=vertical]
+{
+    writing-mode: bt-lr; /* IE 
+    -webkit-appearance: slider-vertical; /* WebKit */
+    width: 8px;
+    height: 175px;
+    padding: 0 5px;
+}
+table, th, td {
+  border: 1px solid black;
+  border-collapse: collapse; 
+}
+#Canvas_xy{
+    position:relative;
+    /*background: #4CAF50;*/
+
+}
+#Canvas_xy_overlay{
+    position: absolute;
+    left: calc(100% - 10px);
+    z-index: 10;
+}
+/*#x_slider {
+  direction: rtl;
+}*/
+textarea {
+  width: 152px;
+  height: 80px;
+}
+table.st0 {
+  /*background-color: lightblue;*/
+  width: 150px;
+  /*height: 20px;*/
+  font-family:'Courier New', Courier, monospace; 
+  /*font-family: Helvetica, Arial, sans-serif;*/
+  font-size: 12px; 
+  border: 1px solid black;
+}
+div.ex0 {
+  /*background-color: lightblue;*/
+  width: 150px;
+  /*height: 14px;*/
+  /*font-family:'Courier New', Courier, monospace; */
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: bold;
+  border: 1px solid black;
+}
+div.ex1 {
+  /*background-color: lightblue;*/
+  width: 150px;
+  height: 240px;
+  overflow: scroll;
+  font-family:'Courier New', Courier, monospace; 
+  font-size: 12px;
+  border: 1px solid black;
+}
+div.ex2 {
+  /*background-color: lightblue;*/
+  width: 150px;
+  height: 100px;
+  overflow: scroll;
+  font-family:'Courier New', Courier, monospace; 
+  font-size: 12px;
+  border: 1px solid black;
+}
+div.ex3 {
+  /*background-color: lightblue;*/
+  width: 150px;
+  height: 130px;
+  overflow: scroll;
+  font-family:'Courier New', Courier, monospace; 
+  font-size:12px; 
+  border: 1px solid black;
+}
+.txt{
+    color: #696969;
+    margin:5px;
+    width:30px;
+}
+
+
+.txtbtn {
+  border: none;
+  background-color: inherit;
+  padding: 1px 5px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align:left;
+  display: inline-block;
+}
+.txtright {text-align:right;
+width: 70px;}
+/* On mouse-over */
+.txtbtn:hover {background: #eee;}
+
+.success {color: #00386c;
+  border: 1px solid #00386c;
+font-weight: bold;}
+.info {color: dodgerblue;}
+.warning {color: orange;}
+.danger {color: red;}
+.default {color: black;}
+
+
+    .btn
+    {
+        margin:5px;
+        /*width:30px;*/
+        /*height:30px;*/
+        background-color: #00386c;
+
+  border: none;
+  color: #f1d1bd;
+  padding: 5px 20px;
+  cursor: pointer;
+  font-size: 24px;
+    }
+
+        /* Darker background on mouse-over */
+.btn:hover {
+  background-color: #808080;
+  /*background-color: #00386c;*/
+}
+.pink {
+  background-color: Transparent;
+   color: #FA8072;
+    font-size: 25px;
+}
+.pink:hover {
+  background-color: Transparent;
+  color: #808080;
+  /*background-color: #00386c;*/
+}
+    .orange{
+      background-color:#ff8c00;
+    }
+    .red{
+      /*background-color:#5e0000;*/
+      background-color:#8b0000;
+
+    }
+
+    .green{
+      background-color:green;
+    }
+    .darkgray{
+      background-color:gray;
+
+    }
+  .btn2
+    {
+      position: relative;
+        
+        /*top: 5px;*/
+        left: 200px;
+        /*margin:20px;*/
+        /*width:50px;*/
+    }
+    table {
+    /*border: 1px solid #CCC;*/
+    border: none;
+    border-collapse: collapse;
+}
+
+td {
+    border: none;
+}
+
+
+/*#winCenter {*/
+  /*direction: rtl;*/
+/* background:  #82CFD0 ;
+  border: solid 1px #82CFD0;
+  border-radius: 8px;*/
+  /*height: 7px;*/
+  /*width: 356px;*/
+/*  outline: none;
+  transition: background 450ms ease-in;
+  -webkit-appearance: none;
+*/
+/*}*/
+/*#winWidth {*/
+  /*direction: rtl;*/
+ /*background: , #82CFD0 ;*/
+  /*border: solid 1px #82CFD0;*/
+  /*border-radius: 8px;*/
+  /*height: 10px;*/
+  /*width: 356px;*/
+  /*outline: none;*/
+  /*transition: background 450ms ease-in;*/
+  /*-webkit-appearance: none;*/
+
+/*}*/
+
+
+
+.label-success {background-color: #4CAF50;} /* Green */
+.label-info {background-color: #2196F3;} /* Blue */
+.label-warning {background-color: #ff9800;} /* Orange */
+.label-danger {background-color: #f44336;} /* Red */ 
+.label-other {background-color: #e7e7e7; color: black;} /* Gray */ 
+
+.tooltip {
+
+  position: relative;
+  display: inline-block;
+  border-bottom: 1px dotted black;
+}
+
+.listSel
+    {
+margin:1px;
+background-color: #00386c;
+  border: 1;
+  color: #f1d1bd;
+  padding: 1px 8px;
+  cursor: default;
+  font-size: 14px;
+    }
+.listNoSel
+    {
+margin:2px;
+background-color: #E8CEBF;
+  border: 1;
+  color: black;
+  padding: 1px 8px;
+  cursor: pointer;
+  font-size: 14px;
+    }
+.tooltip .tooltiptext {
+  visibility: hidden;
+  font-size: 12px;
+  width: 100px;
+  background-color: #555;
+  color: #fff;
+  text-align: center;
+  border-radius: 3px;
+  padding: 5px 0;
+  position: absolute;
+  z-index: 1;
+  bottom: 70%;
+  left: 0%;
+  margin-left: 0px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.tooltip .tooltiptext::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #555 transparent transparent transparent;
+}
+
+.tooltip:hover .tooltiptext {
+  visibility: visible;
+  opacity: 1;
+}
+
+
+</style>
+
+      <!-- HEADER  -->
+<div id="login" >
+<i class="fas fa-key"></i>
+<input type="text" id="key" name="key" placeholder="ACCESS KEY">
+  <button id = 'key_check'> OK </button>
+  <div class="tooltip">
+    <span  class="tooltiptext"> Help</span>
+  <a href="{{url_for('help')}}" target="_blank"><button id = 'mainhelp' class="btn fas fa-info-circle pink">  
+</button></a>
+</div>
+</div>
+<span id="status" class="label-other"></span>
+<div id="display">
+<table style="width:1200px">
+    <tr>
+      <td colspan="1" style="height:50px">
+
+
+<div class="tooltip">
+  <span  class="tooltiptext"> Help</span>
+  <a href="{{ url_for('help') }}" target="_blank"><button id = 'help' class="btn fas fa-info-circle pink">  
+</button></a>
+</div>
+
+<div class="tooltip">
+  <span  class="tooltiptext"> Remove last point</span>
+ <button id = 'undo' class="btn fas fa-eraser">  
+</button>
+</div>
+
+      </td>
+ <td colspan="2" >
+<div class="tooltip">
+ <button id = 'prev_file' class="btn fas fa-chevron-left">  
+</button>
+<span id= "prev_tip" class="tooltiptext">Previous Patient</span>
+</div>
+
+<div class="tooltip">
+ <button id = 'reload' class="btn fas fa-sync orange"> 
+</button>
+<span class="tooltiptext"> reload </span>
+</div>
+
+<div id = 'next_div' class="tooltip">
+ <button id = 'next_file' class="btn fas fa-chevron-right">   
+</button>
+<span id= "next_tip" class="tooltiptext">Next Patient</span>
+</div>
+
+<div class="tooltip">
+ <span class="tooltiptext">Zoon In</span>
+ <button id = 'zoom_in' class="btn fas fa-search-plus" >
+</button>
+</div>
+
+<div class="tooltip">
+  <span class="tooltiptext">Zoom Out</span>
+  <button id = 'zoom_out' class="btn fas fa-search-minus" >
+  </button>
+  </div>
+
+<div class="tooltip">
+  <span class="tooltiptext">Record the Point</span>
+  <button id="capture" class="btn far fa-dot-circle red">
+  </button>
+  </div>
+  
+  </td>
+        <td colspan="2" style="height:50px">
+<div >
+   <div class="tooltip">
+    <span class="tooltiptext">Window Center</span>
+    <i class="fas fa-adjust txt"></i> 
+  </div>
+  <input id='winCenter' type='range' style="width: 400px;" class="slider"/>
+   <label class="txt" id="c_val"></label>
+  </div>
+  <div>
+     <div class="tooltip">
+    <span class="tooltiptext">Window Width</span>
+    <i class="fas fa-arrows-alt-h txt"></i>
+  </div>
+  
+  <input id='winWidth' type='range'  style="width: 400px;" class="slider"/>
+  <label id="w_val" class="txt"></label>
+</div>
+      </td>
+    </tr>
+    <tr>
+      <!-- LIST MEANU  -->
+        <td rowspan = "4" style="width:150px" valign="top">
+          <div class = "ex0"> Patients</div>
+          <div class = "ex1" id="patients_list">
+          </div>
+
+          <div class = "ex0"> Comment
+          <button id="update_comment" class="txtbtn default txtright"> update
+          </button>
+          </div>
+          <!-- <div class = "ex2" id="comment"> -->
+            <textarea id="comment" name="comment"></textarea>
+          <!-- </div> -->
+          <div class = "ex0"> Points
+            <button id="remove_point" class="txtbtn default txtright"> remove
+          </button></div>
+          <div class = "ex3" id="met_points">
+            <table id="metCenters" class="st0">
+  <tr class="st0">
+    <td  valign="top" style="width:150px; border: 1px solid black;"> </td>
+  </tr>
+</table>
+          </div>
+
+<!--           
+<table  style="width:150px; font-family:'Courier New', Courier, monospace; font-size:120%
+border: 1px solid black;">
+  <tr style="width:150px; border: 1px solid black;">
+    <span id="save_status" class="label-other"></span>
+    <td valign="top" style="width:150px; border: 1px solid black;"> Patients </td>
+  </tr>
+</table>
+<table id="patienList" style="width:150px; font-family:'Courier New', Courier, monospace; font-size:120%; border: 1px solid black;">
+  <tr style="width:150px; border: 1px solid black;">
+    <td  valign="top" style="width:150px; border: 1px solid black;"> </td>
+    <td valign="top" style="width:150px; border: 1px solid black;"> POINTS:
+          [X,Y,Z] </td>
+  </tr>
+</table>
+  <table id="metCenters" style="width:150px; font-family:'Courier New', Courier, monospace; font-size:120%; border: 1px solid black;">
+  <tr style="width:150px; border: 1px solid black;">
+    <td  valign="top" style="width:150px; border: 1px solid black;"> </td>
+  </tr>
+</table> -->
+  
+        </td>
+        <!-- SLIDER XYY  -->
+         <td rowspan = "3" style="width:20px">
+          <input id="xyy_slider" type="range" min="0" max="512" value="0" step="1" class="slider vertical" 
+                    style="height: 512px ;"  >
+        </td>
+        <!--  XY  -->
+         <td rowspan = "3">
+              <div 
+              style="position:relative;"> 
+                  <div id="dicomImageWrapper" style="width:512px;height:512px;position:relative;color:yellow"
+         oncontextmenu="return false"
+         onmousedown="return false">
+
+        <div id="XYFrame"
+             style="width:512px;height:512px;top:0px;left:0px;position:absolute">
+        </div>
+
+        <div id="topleft" class="overlay" style="position:absolute;top:0px;left:0px">
+            ID:
+        </div>
+        <div id="topright" class="overlay" style="position:absolute;top:0px;right:0px">
+            Roints:
+        </div>
+        <div id="bottomright" class="overlay" style="position:absolute;bottom:0px;right:0px">
+            Zoom:
+        </div>
+        <div id="bottomleft" class="overlay" style="position:absolute;bottom:0px;left:0px">
+            WW/WC:
+        </div>
+        <canvas id="Canvas_xy_overlay" width="512" height="512" 
+                 style="border:1px solid #000fff; position: absolute; left: 0px; top: 0px; z-index: 1;"></canvas>
+      </div>
+            </div>
+        </td>
+        <!-- SLIDER XZZ  -->
+         <td style="width:20px;">
+          <input id="xzz_slider" type="range" min="0" max="246" value="0" step="1" class="slider vertical" 
+                    style="height: 246px;"  >
+        </td>
+        <!--  XZ  -->
+         <td>
+
+              <div 
+              style="position:relative;"> 
+                  <div id="dicomImageWrapper_XZ" style="width:450px;height:246px;position:relative;color:white"
+                   oncontextmenu="return false"
+                   onmousedown="return false">
+                  <div id="XZFrame"
+                       style="width:450px;height:246px;top:0px;left:0px;position:absolute">
+                  </div>
+                  <div id="XZLabel" class="overlay" style="position:absolute;top:0px;left:0px">
+            #:
+        </div>
+       <!--  <canvas id="Canvas_xz" width="450" height="246" 
+                 style="border:1px solid #000fff; position: absolute; left: 0px; top: 0px; z-index: 1;"></canvas> -->
+        <canvas id="Canvas_xz_overlay" width="450" height="246" 
+                 style="border:1px solid #000fff; position: absolute; left: 0px; top: 0px; z-index: 1;"></canvas>
+      </div>
+
+            </div>
+
+
+
+    <!--       <div style="position: relative;">
+              <canvas id="Canvas_xz" width="450" height="246" 
+                 style="border:2px solid #fff000; position: absolute; left: 0; top: -125; z-index: 0;"></canvas>
+              <canvas id="Canvas_xz_overlay" width="450" height="246" 
+                 style="border:1px solid #000fff; position: absolute; left: 0; top: -125; z-index: 1;"></canvas>
+              </div> -->
+        </td>
+    </tr>
+    <tr>
+      <!-- EMPTY  -->
+        <td>
+        </td >
+        <!-- SLIDER XZX  -->
+        <td style="height:20px">
+            <input id="xzx_slider" type="range" min="0" max="450" value="0" step="1" class="slider" 
+            style="width: 450px;">
+        </td>
+    </tr>
+        <tr>
+          <!-- SLIDER YZZ  -->
+        <td style="width:20px">
+          <input id="yzz_slider" type="range" min="0" max="246" value="0" step="1" class="slider vertical"
+          style="height: 246px;">
+        </td>
+        <!-- YZ  -->
+        <td>
+            <div 
+              style="position:relative;"> 
+                  <div id="dicomImageWrapper_YZ" style="width:450px;height:246px;position:relative;color:white"
+                   oncontextmenu="return false"
+                   onmousedown="return false">
+                  <div id="YZFrame"
+                       style="width:450px;height:246px;top:0px;left:0px;position:absolute">
+                  </div>
+                  <div id="YZLabel" class="overlay" style="position:absolute;top:0px;left:0px">
+            #:
+        </div>
+        <!-- <canvas id="Canvas_yz" width="450" height="246" 
+                 style="border:1px solid #000fff; position: absolute; left: 0px; top: 0px; z-index: 1;"></canvas> -->
+        <canvas id="Canvas_yz_overlay" width="450" height="246" 
+                 style="border:1px solid #000fff; position: absolute; left: 0px; top: 0px; z-index: 1;"></canvas>
+      </div>
+            </div>
+
+        </td>
+    </tr>
+        <tr>
+          <!-- EMPTY  -->
+        <td>
+        </td>
+        <!-- SLIDER XYX  -->
+        <td style="height:20px">
+              <input id="xyx_slider" type="range" min="0" max="512" value="0" step="1" class="slider" 
+              style="width: 512px;" >
+        </td>
+        <!-- EMPTY  -->
+        <td>
+         
+        </td>
+        <!-- SLIDER YZY  -->
+        <td style="height:20px">
+            <input id="yzy_slider" type="range" min="0" max="450" value="0" step="1" class="slider" 
+           style="width: 450px;">
+        </td>
+    </tr>
+</table>
+ </div>
+
+
+</body>
+</html>

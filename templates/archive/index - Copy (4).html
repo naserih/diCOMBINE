@@ -1,0 +1,1237 @@
+<!-- <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script> -->
+<!-- <link href="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet"> -->
+
+<script type="text/javascript" src="static/js/hammer.min.js"></script>
+<script type="text/javascript" src="static/js/jquery.min.js"></script>
+<script src="//code.jquery.com/jquery-1.10.2.js"></script>
+<script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+<script type="text/javascript" src="static/js/cornerstone.min.js"></script>
+<script type="text/javascript" src="static/js/dicomParser.min.js"></script>
+<script type="text/javascript" src="static/js/cornerstoneWADOImageLoader.min.js"></script>
+<script type="text/javascript" src="static/js/cornerstoneFileImageLoader.js"></script>
+<script type="text/javascript" src="static/js/cornerstoneWebImageLoader.min.js"></script>
+<script type="text/javascript" src="static/js/jpx.min.js"></script>
+<script type="text/javascript" src="static/js/cornerstoneMath.js"></script>
+<script type="text/javascript" src="static/js/cornerstoneTools.min.js"></script>
+<!-- <script type="text/javascript" src="static/js/controller.js"></script> -->
+
+<!-- <script src="static/node_modules/cornerstone-tools/dist/cornerstoneTools.js"></script> -->
+<!-- <script src="https://cdn.jsdelivr.net/npm/cornerstone-tools@next"></script> -->
+
+
+<script type='text/javascript'>
+
+
+  $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
+  
+
+
+  var current_xy_image;
+  var current_xz_image;
+  var current_yz_image;
+  var image_aspect_ratio = {{image_aspect_ratio}};
+  var zoomScale = 1
+  var XShift = 0, YShift = 0; 
+
+  function trackTransforms(ctx){
+      var svg = document.createElementNS("http://www.w3.org/2000/svg",'svg');
+      var xform = svg.createSVGMatrix();
+      ctx.getTransform = function(){ return xform; };
+
+      var savedTransforms = [];
+      var save = ctx.save;
+      ctx.save = function(){
+          savedTransforms.push(xform.translate(0,0));
+          return save.call(ctx);
+      };
+    
+      var restore = ctx.restore;
+      ctx.restore = function(){
+        xform = savedTransforms.pop();
+        return restore.call(ctx);
+              };
+
+      var scale = ctx.scale;
+      ctx.scale = function(sx,sy){
+        xform = xform.scaleNonUniform(sx,sy);
+        return scale.call(ctx,sx,sy);
+              };
+    
+      var rotate = ctx.rotate;
+      ctx.rotate = function(radians){
+          xform = xform.rotate(radians*180/Math.PI);
+          return rotate.call(ctx,radians);
+      };
+    
+      var translate = ctx.translate;
+      ctx.translate = function(dx,dy){
+          xform = xform.translate(dx,dy);
+          return translate.call(ctx,dx,dy);
+      };
+    
+      var transform = ctx.transform;
+      ctx.transform = function(a,b,c,d,e,f){
+          var m2 = svg.createSVGMatrix();
+          m2.a=a; m2.b=b; m2.c=c; m2.d=d; m2.e=e; m2.f=f;
+          xform = xform.multiply(m2);
+          return transform.call(ctx,a,b,c,d,e,f);
+      };
+    
+      var setTransform = ctx.setTransform;
+      ctx.setTransform = function(a,b,c,d,e,f){
+          xform.a = a;
+          xform.b = b;
+          xform.c = c;
+          xform.d = d;
+          xform.e = e;
+          xform.f = f;
+          return setTransform.call(ctx,a,b,c,d,e,f);
+      };
+    
+      var pt  = svg.createSVGPoint();
+      ctx.transformedPoint = function(x,y){
+          pt.x=x; pt.y=y;
+          return pt.matrixTransform(xform.inverse());
+      }
+    }
+
+  function redraw(source, canvas_id){
+        const canvas = document.getElementById(canvas_id);
+        const ctx = canvas.getContext("2d");
+        trackTransforms(ctx)
+        var p1 = ctx.transformedPoint(0,0);
+        var p2 = ctx.transformedPoint(canvas.width,canvas.height);
+        ctx.clearRect(p1.x,p1.y,p2.x-p1.x,p2.y-p1.y);
+
+        ctx.save();
+        ctx.setTransform(1,0,0,1,0,0);
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.restore();
+
+        var img = new Image();
+        img.src = source;
+        img.onload = function(){ 
+          ctx.drawImage(img, 0, 0);
+
+          // console.log(this.width)
+          // console.log(this.height)
+        }
+        }
+
+
+  $(document).ready(function() {
+
+
+    // cornerstoneWebImageLoader.external.cornerstone = cornerstone;
+    // cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+// cornerstoneFileImageLoader.external.cornerstone = cornerstone
+//     cornerstoneWebImageLoader.configure({
+//        beforeSend: function(xhr) {
+//            // Add custom headers here (e.g. auth tokens)
+//            //xhr.setRequestHeader('x-auth-token', 'my auth token');
+//        }
+//     });
+//      cornerstoneWADOImageLoader.configure({
+//         beforeSend: function(xhr) {
+//             // Add custom headers here (e.g. auth tokens)
+//             //xhr.setRequestHeader('x-auth-token', 'my auth token');
+//         },
+//         useWebWorkers: true,
+//     });
+
+        // const element = document.querySelector('#dicomImage');
+        // setup handlers before we display the image
+    function onImageRendered(e) {
+          // const eventData = e.detail;
+          viewport = cornerstone.getViewport(e);
+          console.log(viewport)
+
+          // set the canvas context to the image coordinate system
+          // cornerstone.setToPixelCoordinateSystem(eventData.enabledElement, eventData.canvasContext);
+
+          // NOTE: The coordinate system of the canvas is in image pixel space.  Drawing
+          // to location 0,0 will be the top left of the image and rows,columns is the bottom
+               // right.
+            const context = eventData.canvasContext;
+            context.beginPath();
+            context.strokeStyle = 'white';
+            context.lineWidth = .5;
+            context.rect(128, 90, 50, 60);
+            context.stroke();
+            context.fillStyle = "white";
+            context.font = "6px Arial";
+            context.fillText("Tumor Here", 128, 85);
+
+
+
+          document.getElementById('topright').textContent = "Render Time:" + eventData.renderTimeInMs + " ms";
+          document.getElementById('bottomleft').textContent = "WW/WL:" + Math.round(eventData.viewport.voi.windowWidth) + "/" + Math.round(eventData.viewport.voi.windowCenter);
+          document.getElementById('bottomright').textContent = "Zoom:" + eventData.viewport.scale.toFixed(2);
+
+          }
+    function updateView(imageIndex) {
+      return cornerstone.loadAndCacheImage(imageIds[imageIndex]).then(function(image) {
+                    currentImageIndex = imageIndex;
+                    const viewport = cornerstone.getViewport(element);
+                    // console.log(viewport)
+                    cornerstone.displayImage(element, image, viewport);
+                });
+      };
+
+
+
+
+    // function loadImage(imageId) {
+
+
+    //     const width = 256;
+    //     const height = 256;
+    //     const numPixels = width * height;
+    //     const pixelData = new Uint16Array(numPixels);
+    //     const rnd = Math.round(Math.random() * 255);
+    //     let index = 0;
+    //     for (let y = 0; y < height; y++) {
+    //         for (let x = 0; x < width; x++) {
+    //             // pixelData[index] = (x + rnd) % 256;
+    //             index++;
+    //         }
+    //     }
+
+    //     function getPixelData() {
+    //         return pixelData;
+    //     }
+
+    //     const image = {
+    //         imageId: imageId,
+    //         minPixelValue: 0,
+    //         maxPixelValue: 255,
+    //         slope: 1.0,
+    //         intercept: 0,
+    //         windowCenter: 127,
+    //         windowWidth: 256,
+    //         render: cornerstone.renderGrayscaleImage,
+    //         getPixelData: getPixelData,
+    //         rows: height,
+    //         columns: width,
+    //         height: height,
+    //         width: width,
+    //         color: false,
+    //         columnPixelSpacing: 1.0,
+    //         rowPixelSpacing: 1.0,
+    //         invert: false,
+    //         sizeInBytes: width * height * 2
+    //     };
+
+    //     return {
+    //       promise: new Promise((resolve) => resolve(image)),
+    //       cancelFn: undefined
+    //     }
+    // }
+
+    
+
+
+    function updateTheImage(imageIndex) {
+      console.log(imageIds[imageIndex])
+      return cornerstone.loadAndCacheImage(imageIds[imageIndex]).then(function(image) {
+                    currentImageIndex = imageIndex;
+                    const viewport = cornerstone.getViewport(elementXY);
+                    // console.log(viewport)
+                    cornerstone.displayImage(elementXY, image, viewport);
+                });
+      };
+        // var element = $('#dicomImage').get(0);
+        const elementXY = document.getElementById('dicomImage');
+        cornerstone.enable(elementXY);
+        
+        let currentImageIndex = 0;
+        var imageIds = [];
+        
+        $('#selectFile').on('change', function(e) {
+        var files = e.target.files
+        var len = files.length, i;
+        for(i=0;i<len;i+=1){
+        // console.log(files[i]);
+        // cornerstoneWebImageLoader.external.cornerstone = cornerstone;
+        // cornerstoneFileImageLoader.external.cornerstone = cornerstone;
+
+
+
+        
+
+
+        // cornerstone.registerImageLoader('pngLoader', loadImage);
+
+        // cornerstone.registerImageLoader('myCustomLoader', loadImage);
+        // cornerstone.registerImageLoader('file', loadImage);
+        // console.log(files[i].webkitRelativePath)
+        // webkitRelativePath
+        cornerstoneFileImageLoader.addFile(files[i]); 
+        // cornerstoneFileImageLoader.addFile(files[i]); 
+        //  url = "https://rawgit.com/cornerstonejs/cornerstoneWebImageLoader/master/examples/Renal_Cell_Carcinoma.jpg"
+        // cornerstone.loadImage(url).then(function(image) {
+        //     cornerstone.displayImage(element, image);
+        //   });
+        imageIds.push("dicomfile://" + i)
+
+        // imageIds.push("pngLoader://" + i)
+        }
+
+        // cornerstone.loadImage(imageIds[0]).then(function(image) {
+        //         cornerstone.displayImage(elementXY, image);
+        //     });
+
+        // const url = 'https://rawgit.com/cornerstonejs/cornerstoneWebImageLoader/master/examples/Renal_Cell_Carcinoma.jpg'
+        // vr url = 'https://en.wikipedia.org/wiki/Portable_Network_Graphics#/media/File:PNG_transparency_demonstration_1.png'
+        // var url = "{{url_for('static', filename='images/2/1.jpg') }}"
+        // const url = imageIds[0]
+        // const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(files[i]); 
+        // cornerstone.loadImage(imageId).then(function(image) {
+        // const viewport = cornerstone.getDefaultViewportForImage(elementXY, image);
+        // cornerstone.displayImage(elementXY, image, viewport);
+        //   });
+
+
+
+        // image enable the dicomImage element and activate a few tools
+        // const element = document.getElementById('pngXZImage');
+        // cornerstone.enable(element);
+        // cornerstone.loadAndCacheImage(url).then(function(image) {
+        // cornerstone.displayImage(element, image);
+        // });
+
+
+    // const imageId = 'myImageLoader://1';
+    // cornerstone.loadImage(url).then(function(image) {
+    //     cornerstone.displayImage(element, image);
+    // });
+
+
+
+        const imagePromise = updateTheImage(0);
+        });
+
+        document.getElementById('render').addEventListener('click', function (e) {
+          viewport = cornerstone.getViewport(elementXY);
+          document.getElementById("minRange").min = Number(viewport.voi.windowCenter)-Number(viewport.voi.windowWidth)/2.0
+          document.getElementById("minRange").max = Number(viewport.voi.windowCenter)+Number(viewport.voi.windowWidth)/2.0
+          document.getElementById("minRange").value =  document.getElementById("minRange").min 
+          document.getElementById("maxRange").min =  document.getElementById("minRange").min 
+          document.getElementById("maxRange").max =  document.getElementById("minRange").max
+           document.getElementById("maxRange").value =  document.getElementById("minRange").max
+          $('#min_val').html($('#minRange').val())
+          $('#max_val').html($('#maxRange').val())
+          
+          console.log(viewport)
+          console.log(viewport)
+        });
+
+
+        document.getElementById("minRange").oninput = function() {
+          var value = (this.value-this.min)/(this.max-this.min)*100
+          this.style.background = 'linear-gradient(to right, white 0%, #fff ' + value + '%, #82CFD0 ' + value + '%, #82CFD0 100%)'
+          if (this.value > Number($('#maxRange').val())){
+            this.value  = $('#maxRange').val()
+          }
+          $('#min_val').html(this.value)
+          $('#max_val').html($('#maxRange').val())
+
+                      // console.log(viewport.voi.windowWidth)
+                      // console.log(viewport.voi.windowCenter-(viewport.voi.windowWidth)/2)
+                      // console.log(viewport.voi.windowCenter+(viewport.voi.windowWidth)/2)
+           viewport.voi.windowCenter = (Number(this.value)+Number($('#maxRange').val()))/2.0;
+           viewport.voi.windowWidth = (Number($('#maxRange').val())-Number(this.value));
+           cornerstone.setViewport(elementXY, viewport);
+        };
+
+        document.getElementById("maxRange").oninput = function() {
+          var value = (this.value-this.min)/(this.max-this.min)*100
+          this.style.background = 'linear-gradient(to right, #82CFD0 0%, #82CFD0 ' + value + '%, #fff ' + value + '%, white 100%)'
+           if (this.value < Number($('#minRange').val())){
+            this.value  = $('#minRange').val()
+          }
+          $('#max_val').html(this.value)
+          $('#min_val').html($('#minRange').val())
+          console.log()
+          // const viewport = cornerstone.getViewport(elementXY);
+          viewport.voi.windowCenter = (Number(this.value)+Number($('#minRange').val()))/2.0;
+           viewport.voi.windowWidth = (Number(this.value)-Number($('#minRange').val()));
+          cornerstone.setViewport(elementXY, viewport);
+        };
+
+
+        // console.log(elementXY)
+        // console.log(imagePromise)
+        // console.log(eventData.viewport.voi.windowWidth)
+        // console.log(eventData.viewport.voi.windowCenter)
+        // console.log(eventData.viewport.voi.windowMin)
+        // console.log(eventData.viewport.voi.windowMax)
+        // elementXY.addEventListener('cornerstoneimagerendered', onImageRendered);
+        // onImageRendered(elementXY)
+
+
+        document.getElementById('capture').addEventListener('click', function (e) {
+
+            // elementXY.style.width = '300px';
+            // elementXY.style.height = '300px';
+            // cornerstone.resize(elementXY);
+          // const xy_context = document.getElementById("Canvas_xy").getContext("2d");; 
+          // cornerstone.setTransform(1, 0, 0, 1, 0, 0);
+          // cornerstone.disable(elementXY);
+
+          x_capture = ((Number($('#xyx_slider').val())+256*(zoomScale-1))/zoomScale)-XShift;
+          y_capture = ((Number($('#xyy_slider').val())+256*(zoomScale-1))/zoomScale)-YShift;
+          z_capture = currentImageIndex;
+          console.log($('#xyx_slider').val() + "    " + zoomScale + "    " + XShift)
+          var met_points = [x_capture, y_capture, z_capture]
+          var table = document.getElementById("metCenters");
+          // Create an empty <tr> element and add it to the 1st position of the table:
+          var row = table.insertRow(0);
+          // Insert new cells (<td> elements) at the 1st and 2nd position of the "new" <tr> element:
+          var cell = row.insertCell(0);
+          // Add some text to the new cells:
+          cell.innerHTML = met_points;
+
+          
+        });
+        document.getElementById('RESET').addEventListener('click', function (e) {
+            // elementXY.style.width = '300px';
+            // elementXY.style.height = '300px';
+            // cornerstone.resize(elementXY);
+          // const xy_context = document.getElementById("Canvas_xy").getContext("2d");; 
+          // cornerstone.setTransform(1, 0, 0, 1, 0, 0);
+          // cornerstone.disable(elementXY);
+
+          
+        });
+        function zoom(scale){
+            const viewport = cornerstone.getViewport(elementXY);
+            viewport.scale = scale 
+            const deltaX = (scale-1)*(XShift+Number($('#xyx_slider').val())-256) ;
+            const deltaY = (scale-1)*(YShift+Number($('#xyy_slider').val())-256);
+            console.log(deltaX + '  ' + deltaY)
+            // viewport.translation.x -= deltaX;
+            // viewport.translation.y -= deltaY;
+            // XShift -= deltaX;
+            // YShift -= deltaY;
+            cornerstone.setViewport(elementXY, viewport);
+
+        }
+        document.getElementById('zoom_in').addEventListener('click', function (e) {
+          zoomScale *= 1.5
+          zoom(zoomScale)
+
+            // console.log(viewport)
+            // console.log(viewport.scale)
+          
+        });
+        document.getElementById('zoom_out').addEventListener('click', function (e) {
+          zoomScale /= 1.5
+          zoom(zoomScale)
+            
+           // console.log(zoomScale)
+
+
+          
+        });
+
+          const overlay_element = document.getElementById('Canvas_xy_overlay'); 
+          const overlay_element_ctx = overlay_element.getContext("2d");
+          
+
+          function getCursorPosition(canvas, event) {
+          const rect = canvas.getBoundingClientRect()
+          const x = event.clientX - rect.left
+          const y = event.clientY - rect.top
+          console.log("x: " + x + " y: " + y)
+            return [x,y]
+      };
+
+
+  
+
+      overlay_element.addEventListener('dblclick', function(e){ 
+
+            let cursorPosition = getCursorPosition(overlay_element, e)
+            // let lastX = e.pageX;
+            // let lastY = e.pageY;
+            let thisX = cursorPosition[0];
+            let thisY = cursorPosition[1];
+
+            $("#xyx_slider").val(thisX);
+            $("#xyy_slider").val(thisY);
+            renderVerLine("Canvas_xy_overlay",  thisY , thisX);
+            renderHorLine("Canvas_xy_overlay",  thisX , thisY);  
+            
+
+
+          });
+          overlay_element.addEventListener('mousedown', function (e) {
+            const viewport = cornerstone.getViewport(elementXY);
+            // console.log(viewport.scale)
+            let cursorPosition = getCursorPosition(overlay_element, e)
+            // let lastX = e.pageX;
+            // let lastY = e.pageY;
+            let lastX = cursorPosition[0];
+            let lastY = cursorPosition[1];
+            // console.log("xP: " + lastX + " yP: " + lastY)
+            const mouseButton = e.which;
+            function mouseMoveHandler(e) {
+              cursorPosition = getCursorPosition(overlay_element, e)
+              let thisX = cursorPosition[0];
+              let thisY = cursorPosition[1];
+              const deltaX = thisX - lastX;
+              const deltaY = thisY - lastY;
+              lastX = thisX;
+              lastY = thisY;
+
+              if (mouseButton === 2) {
+                // let viewport = cornerstone.getViewport(elementXY);
+                viewport.voi.windowWidth += (deltaX / viewport.scale);
+                viewport.voi.windowCenter += (deltaY / viewport.scale);
+                cornerstone.setViewport(elementXY, viewport);
+
+              } else if (mouseButton === 1) {
+                // let viewport = cornerstone.getViewport(elementXY);
+                // viewport.translation.x += (deltaX / viewport.scale);
+                // viewport.translation.y += (deltaY / viewport.scale);
+                viewport.translation.x += (deltaX / viewport.scale);
+                viewport.translation.y += (deltaY / viewport.scale);
+                cornerstone.setViewport(elementXY, viewport);
+                XShift += deltaX / viewport.scale;
+                YShift += deltaY / viewport.scale;
+                console.log('XShift: '+ XShift + 'YShift: '+ YShift)
+                // console.log(YShift)
+                
+                // $('#xyy_slider').val(Number($('#xyy_slider').val())+YShift);
+                // console.log(deltaY / viewport.scale)
+                // console.log(Number($("#xyy_slider").val()))
+                
+                // document.getElementById("xyy_slider").min = parseInt(document.getElementById("xyy_slider").min)-parseInt((deltaY/viewport.scale))
+                // document.getElementById("xyy_slider").max = parseInt(document.getElementById("xyy_slider").max)-parseInt((deltaY/viewport.scale))
+                document.getElementById("xyy_slider").value = parseInt(document.getElementById("xyy_slider").value)+parseInt(deltaY)
+                // document.getElementById("xyx_slider").min = parseInt(document.getElementById("xyx_slider").min)-parseInt((deltaX/viewport.scale))
+                // document.getElementById("xyx_slider").max = parseInt(document.getElementById("xyx_slider").max)-parseInt((deltaX/viewport.scale))
+                document.getElementById("xyx_slider").value = parseInt(document.getElementById("xyx_slider").value)+parseInt(deltaX)
+                // console.log(document.getElementById("xyy_slider").min+ '    '+
+                  // document.getElementById("xyy_slider").max +"   "+ 
+                  // document.getElementById("xyy_slider").value)
+                // var newValX = parseInt(document.getElementById("xyx_slider").value)+parseInt(XShift)
+                // var newValY = parseInt(document.getElementById("xyy_slider").value)+parseInt(YShift)
+                // console.log(newValX + "  "+ newValY)
+                // 
+                renderVerLine("Canvas_xy_overlay",  $("#xyy_slider").val() , $("#xyx_slider").val());
+                renderHorLine("Canvas_xy_overlay",  $("#xyx_slider").val() , $("#xyy_slider").val());                    
+                
+                // console.log(Number($("#xyy_slider").max))
+                // document.getElementById("xyy_slider").value += (deltaY / viewport.scale)
+                // document.getElementById("xyy_slider").value += "1"
+
+                // document.getElementById("xyy_slider").max += (deltaY / viewport.scale)
+                // $("#xyy_slider").val($("#xyy_slider").val()+(deltaY / viewport.scale));
+
+
+
+              } else if (mouseButton === 3) {
+                console.log(viewport.scale)
+                zoomScale += (deltaY / 100)
+                // viewport.scale += (deltaY / 100);
+                viewport.scale = zoomScale
+                cornerstone.setViewport(elementXY, viewport);
+              }
+            }
+
+            function mouseUpHandler() {
+              document.removeEventListener('mouseup', mouseUpHandler);
+              document.removeEventListener('mousemove', mouseMoveHandler);
+            }
+
+            document.addEventListener('mousemove', mouseMoveHandler);
+            document.addEventListener('mouseup', mouseUpHandler);
+        });
+
+
+        const mouseWheelEvents = ['mousewheel', 'DOMMouseScroll'];
+        mouseWheelEvents.forEach(function(eventType) {
+                overlay_element.addEventListener(eventType, function (e) {
+                // Prevent page from scrolling
+                e.preventDefault();
+                // Firefox e.detail > 0 scroll back, < 0 scroll forward
+                // chrome/safari e.wheelDelta < 0 scroll back, > 0 scroll forward
+                if (e.wheelDelta < 0 || e.detail > 0) {
+                    if (currentImageIndex < imageIds.length-1) {
+                      currentImageIndex += 1
+                    }
+                } else {
+                    if (currentImageIndex > 0) {
+                      currentImageIndex -= 1
+                       
+                    }
+                }
+                  updateTheImage(currentImageIndex);
+                  $("#xzz_slider").val(currentImageIndex);
+                  $("#yzz_slider").val(currentImageIndex);
+                
+                return false;
+            });
+        });
+
+
+
+
+
+        var index = 100
+        console.log(index);
+
+
+    
+
+    // drag_frame('Canvas_xy', 'Canvas_xy_overlay')
+
+function renderHorLine(overlay, slider_val, value){
+    const xz_o = document.getElementById(overlay);
+    const xz_o_ctx = xz_o.getContext("2d");
+    xz_o_ctx.clearRect(0, 0, xz_o.width, xz_o.height);
+    xz_o_ctx.beginPath(); 
+    xz_o_ctx.setLineDash([15, 5, 3, 5]);
+    xz_o_ctx.strokeStyle = "#FF0000";
+    xz_o_ctx.lineWidth = 1;
+    xz_o_ctx.moveTo(0,value);
+    xz_o_ctx.lineTo(xz_o.width,value);
+    xz_o_ctx.stroke();
+    xz_o_ctx.beginPath(); 
+    xz_o_ctx.setLineDash([15, 5, 3, 5]);
+    xz_o_ctx.strokeStyle = "#FF0000";
+    xz_o_ctx.lineWidth = 1;
+    xz_o_ctx.moveTo(slider_val,0);
+    xz_o_ctx.lineTo(slider_val,xz_o.height);
+    xz_o_ctx.stroke();
+}
+
+function renderVerLine(overlay, slider_val, value){
+    const yz_o = document.getElementById(overlay);
+    const yz_o_ctx = yz_o.getContext("2d");
+    yz_o_ctx.clearRect(0, 0, yz_o.width, yz_o.height);
+    yz_o_ctx.beginPath(); 
+    yz_o_ctx.setLineDash([15, 5, 3, 5]);
+    yz_o_ctx.strokeStyle = "#FF0000";
+    yz_o_ctx.lineWidth = 1;
+    yz_o_ctx.moveTo(value,0);
+    yz_o_ctx.lineTo(value,yz_o.height);
+    yz_o_ctx.stroke();
+    yz_o_ctx.beginPath(); 
+    yz_o_ctx.setLineDash([15, 5, 3, 5]);
+    yz_o_ctx.strokeStyle = "#FF0000";
+    yz_o_ctx.lineWidth = 1;
+    yz_o_ctx.moveTo(0,slider_val);
+    yz_o_ctx.lineTo(yz_o.width,slider_val);
+    yz_o_ctx.stroke();
+
+}
+
+
+
+  $("#xzz_slider").change(function(){
+    $("#result").text($(this).val());
+    $("#yzz_slider").val($(this).val());
+    renderHorLine("Canvas_xz_overlay",  "#xzx_slider", $(this).val())
+    renderHorLine("Canvas_yz_overlay",  "#yzy_slider", $(this).val())
+
+    $.getJSON($SCRIPT_ROOT + '/_get_xy_image', {
+        z_val: this.value,
+        y_val: $("#xyy_slider").val(),
+        x_val: $("#xyx_slider").val(),
+      }, function(data) {
+        $("#result").text(data.xy_result);
+        current_xy_image =  data.xy_result;
+        // redraw(current_xy_image, "Canvas_xy")    
+      });
+      console.log(image_aspect_ratio)
+      console.log(this.value*image_aspect_ratio[0]/image_aspect_ratio[2])
+      updateTheImage(parseInt(this.value*image_aspect_ratio[0]/image_aspect_ratio[2]));
+      
+      return false;
+    });
+    $("#yzz_slider").change(function(){
+    $("#result").text($(this).val());
+    $("#xzz_slider").val($(this).val());
+    renderHorLine("Canvas_xz_overlay",  $("#xzx_slider").val(), $(this).val())
+    // const xz_o = document.getElementById("Canvas_xz_overlay");
+    // const xz_o_ctx = xz_o.getContext("2d");
+    // xz_o_ctx.clearRect(0, 0, xz_o.width, xz_o.height);
+    // xz_o_ctx.beginPath(); 
+    // xz_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xz_o_ctx.strokeStyle = "#FF0000";
+    // xz_o_ctx.lineWidth = 1;
+    // xz_o_ctx.moveTo(0,$(this).val());
+    // xz_o_ctx.lineTo(xz_o.width,$(this).val());
+    // xz_o_ctx.stroke();
+    // xz_o_ctx.beginPath(); 
+    // xz_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xz_o_ctx.strokeStyle = "#FF0000";
+    // xz_o_ctx.lineWidth = 1;
+    // xz_o_ctx.moveTo($('#xzx_slider').val(), 0);
+    // xz_o_ctx.lineTo($('#xzx_slider').val(), xz_o.height);
+    // xz_o_ctx.stroke();
+    renderHorLine("Canvas_yz_overlay",  $("#yzy_slider").val() , $(this).val())
+    // const yz_o = document.getElementById("Canvas_yz_overlay");
+    // const yz_o_ctx = yz_o.getContext("2d");
+    // yz_o_ctx.clearRect(0, 0, yz_o.width, yz_o.height);
+    // yz_o_ctx.beginPath(); 
+    // yz_o_ctx.setLineDash([15, 5, 3, 5]);
+    // yz_o_ctx.strokeStyle = "#FF0000";
+    // yz_o_ctx.lineWidth = 1;
+    // yz_o_ctx.moveTo(0,$(this).val());
+    // yz_o_ctx.lineTo(yz_o.width,$(this).val());
+    // yz_o_ctx.stroke();
+    // yz_o_ctx.beginPath(); 
+    // yz_o_ctx.setLineDash([15, 5, 3, 5]);
+    // yz_o_ctx.strokeStyle = "#FF0000";
+    // yz_o_ctx.lineWidth = 1;
+    // yz_o_ctx.moveTo($('#yzy_slider').val(),0);
+    // yz_o_ctx.lineTo($('#yzy_slider').val(),yz_o.height);
+    // yz_o_ctx.stroke();
+
+    $.getJSON($SCRIPT_ROOT + '/_get_xy_image', {
+        z_val: this.value,
+        y_val: $("#xyy_slider").val(),
+        x_val: $("#xyx_slider").val(),
+      }, function(data) {
+        $("#result").text(data.xy_result);
+        current_xy_image = data.xy_result
+        // redraw(current_xy_image, "Canvas_xy")
+      });
+    updateTheImage(this.value);
+      return false;
+    });
+  $("#xyy_slider").change(function(){
+    const canvas_id = "Canvas_xz";
+    $("#result").text($(this).val());
+    $("#yzy_slider").val($(this).val());
+    renderHorLine("Canvas_xy_overlay",   $("#xyx_slider").val(), $(this).val())
+    // const xy_o = document.getElementById("Canvas_xy_overlay");
+    // const xy_o_ctx = xy_o.getContext("2d");
+    // xy_o_ctx.clearRect(0, 0, xy_o.width, xy_o.height);
+    // xy_o_ctx.beginPath(); 
+    // xy_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xy_o_ctx.strokeStyle = "#FF0000";
+    // xy_o_ctx.lineWidth = 1;
+    // xy_o_ctx.moveTo(0,$(this).val());
+    // xy_o_ctx.lineTo(xy_o.width,$(this).val());
+    // xy_o_ctx.stroke();
+    // xy_o_ctx.beginPath(); 
+    // xy_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xy_o_ctx.strokeStyle = "#FF0000";
+    // xy_o_ctx.lineWidth = 1;
+    // xy_o_ctx.moveTo($("#xyx_slider").val(),0);
+    // xy_o_ctx.lineTo($("#xyx_slider").val(),xy_o.height);
+    // xy_o_ctx.stroke();
+    renderVerLine("Canvas_yz_overlay",  $("#yzz_slider").val() , $(this).val())
+    // const yz_o = document.getElementById("Canvas_yz_overlay");
+    // const yz_o_ctx = yz_o.getContext("2d");
+    // yz_o_ctx.clearRect(0, 0, yz_o.width, yz_o.height);
+    // yz_o_ctx.beginPath(); 
+    // yz_o_ctx.setLineDash([15, 5, 3, 5]);
+    // yz_o_ctx.strokeStyle = "#FF0000";
+    // yz_o_ctx.lineWidth = 1;
+    // yz_o_ctx.moveTo($(this).val(),0);
+    // yz_o_ctx.lineTo($(this).val(),yz_o.height);
+    // yz_o_ctx.stroke();
+    // yz_o_ctx.beginPath(); 
+    // yz_o_ctx.setLineDash([15, 5, 3, 5]);
+    // yz_o_ctx.strokeStyle = "#FF0000";
+    // yz_o_ctx.lineWidth = 1;
+    // yz_o_ctx.moveTo(0,$('#yzz_slider').val());
+    // yz_o_ctx.lineTo(yz_o.width,$('#yzz_slider').val());
+    // yz_o_ctx.stroke();
+
+    $.getJSON($SCRIPT_ROOT + '/_get_xz_image', {
+        z_val: $("#xzz_slider").val(),
+        y_val: this.value,
+        x_val: $("#xzx_slider").val(),
+      }, function(data) {
+        $("#result").text(data.xz_result);
+        current_xz_image = data.xz_result
+        redraw(current_xz_image, canvas_id)
+      });
+      return false;
+  });
+    $("#yzy_slider").change(function(){
+    $("#result").text($(this).val());
+    $("#xyy_slider").val($(this).val());
+    renderHorLine("Canvas_xy_overlay", $("#xyx_slider").val() , $(this).val())
+    // const xy_o = document.getElementById("Canvas_xy_overlay");
+    // const xy_o_ctx = xy_o.getContext("2d");
+    // xy_o_ctx.clearRect(0, 0, xy_o.width, xy_o.height);
+    // xy_o_ctx.beginPath(); 
+    // xy_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xy_o_ctx.strokeStyle = "#FF0000";
+    // xy_o_ctx.lineWidth = 1;
+    // xy_o_ctx.moveTo(0,$(this).val());
+    // xy_o_ctx.lineTo(xy_o.width,$(this).val());
+    // xy_o_ctx.stroke();
+    // xy_o_ctx.beginPath(); 
+    // xy_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xy_o_ctx.strokeStyle = "#FF0000";
+    // xy_o_ctx.lineWidth = 1;
+    // xy_o_ctx.moveTo($("#xyx_slider").val(),0);
+    // xy_o_ctx.lineTo($("#xyx_slider").val(),xy_o.height);
+    // xy_o_ctx.stroke();
+    renderVerLine("Canvas_yz_overlay",  $("#yzz_slider").val() , $(this).val())
+    // const yz_o = document.getElementById("Canvas_yz_overlay");
+    // const yz_o_ctx = yz_o.getContext("2d");
+    // yz_o_ctx.clearRect(0, 0, yz_o.width, yz_o.height);
+    // yz_o_ctx.beginPath(); 
+    // yz_o_ctx.setLineDash([15, 5, 3, 5]);
+    // yz_o_ctx.strokeStyle = "#FF0000";
+    // yz_o_ctx.lineWidth = 1;
+    // yz_o_ctx.moveTo($(this).val(),0);
+    // yz_o_ctx.lineTo($(this).val(),yz_o.height);
+    // yz_o_ctx.stroke();
+    // yz_o_ctx.beginPath(); 
+    // yz_o_ctx.setLineDash([15, 5, 3, 5]);
+    // yz_o_ctx.strokeStyle = "#FF0000";
+    // yz_o_ctx.lineWidth = 1;
+    // yz_o_ctx.moveTo(0,$("#yzz_slider").val());
+    // yz_o_ctx.lineTo(yz_o.width,$("#yzz_slider").val());
+    // yz_o_ctx.stroke();
+
+    $.getJSON($SCRIPT_ROOT + '/_get_xz_image', {
+        z_val: $("#xzz_slider").val(),
+        y_val: this.value,
+        x_val: $("#xzx_slider").val(),
+      }, function(data) {
+        $("#result").text(data.xz_result);
+        current_xz_image =  data.xz_result;
+        redraw(current_xz_image, "Canvas_xz") 
+      });
+      return false;
+  });
+  $("#xyx_slider").change(function(){
+    $("#result").text($(this).val());
+    $("#xzx_slider").val($(this).val());
+    renderVerLine("Canvas_xy_overlay",  $("#xyy_slider").val() , $(this).val())
+    // const xy_o = document.getElementById("Canvas_xy_overlay");
+    // const xy_o_ctx = xy_o.getContext("2d");
+    // xy_o_ctx.clearRect(0, 0, xy_o.width, xy_o.height);
+    // xy_o_ctx.beginPath(); 
+    // xy_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xy_o_ctx.strokeStyle = "#FF0000";
+    // xy_o_ctx.lineWidth = 1;
+    // xy_o_ctx.moveTo($(this).val(),0);
+    // xy_o_ctx.lineTo($(this).val(), xy_o.height);
+    // xy_o_ctx.stroke();
+    // xy_o_ctx.beginPath(); 
+    // xy_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xy_o_ctx.strokeStyle = "#FF0000";
+    // xy_o_ctx.lineWidth = 1;
+    // xy_o_ctx.moveTo(0, $("#xyy_slider").val());
+    // xy_o_ctx.lineTo(xy_o.width, $("#xyy_slider").val());
+    // xy_o_ctx.stroke();
+  renderVerLine("Canvas_xz_overlay",  $("#xzz_slider").val() , $(this).val())
+    // const xz_o = document.getElementById("Canvas_xz_overlay");
+    // const xz_o_ctx = xz_o.getContext("2d");
+    // xz_o_ctx.clearRect(0, 0, xz_o.width, xz_o.height);
+    // xz_o_ctx.beginPath(); 
+    // xz_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xz_o_ctx.strokeStyle = "#FF0000";
+    // xz_o_ctx.lineWidth = 1;
+    // xz_o_ctx.moveTo($(this).val(),0);
+    // xz_o_ctx.lineTo($(this).val(),xz_o.height);
+    // xz_o_ctx.stroke();
+    // xz_o_ctx.beginPath(); 
+    // xz_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xz_o_ctx.strokeStyle = "#FF0000";
+    // xz_o_ctx.lineWidth = 1;
+    // xz_o_ctx.moveTo(0, $("#xzz_slider").val());
+    // xz_o_ctx.lineTo(xz_o.width,$("#xzz_slider").val());
+    // xz_o_ctx.stroke();
+
+    $.getJSON($SCRIPT_ROOT + '/_get_yz_image', {
+        z_val: $("#yzz_slider").val(),
+        y_val: $("#yzy_slider").val(),
+        x_val: this.value,
+      }, function(data) {
+        $("#result").text(data.yz_result);
+        current_yz_image =  data.yz_result;
+        redraw(current_yz_image, "Canvas_yz") 
+      });
+      return false;
+  });
+    $("#xzx_slider").change(function(){
+    $("#result").text($(this).val());
+    $("#xyx_slider").val($(this).val());
+    renderVerLine("Canvas_xy_overlay",  $("#xyy_slider").val() , $(this).val())
+    // const xy_o = document.getElementById("Canvas_xy_overlay");
+    // const xy_o_ctx = xy_o.getContext("2d");
+    // xy_o_ctx.clearRect(0, 0, xy_o.width, xy_o.height);
+    // xy_o_ctx.beginPath(); 
+    // xy_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xy_o_ctx.strokeStyle = "#FF0000";
+    // xy_o_ctx.lineWidth = 1;
+    // xy_o_ctx.moveTo($(this).val(),0);
+    // xy_o_ctx.lineTo($(this).val(), xy_o.height);
+    // xy_o_ctx.stroke();
+    // xy_o_ctx.beginPath(); 
+    // xy_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xy_o_ctx.strokeStyle = "#FF0000";
+    // xy_o_ctx.lineWidth = 1;
+    // xy_o_ctx.moveTo(0, $("#xyy_slider").val());
+    // xy_o_ctx.lineTo(xy_o.width, $("#xyy_slider").val());
+    // xy_o_ctx.stroke();
+    renderVerLine("Canvas_xz_overlay", $("#xzz_slider").val() , $(this).val())
+    // const xz_o = document.getElementById("Canvas_xz_overlay");
+    // const xz_o_ctx = xz_o.getContext("2d");
+    // xz_o_ctx.clearRect(0, 0, xz_o.width, xz_o.height);
+    // xz_o_ctx.beginPath(); 
+    // xz_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xz_o_ctx.strokeStyle = "#FF0000";
+    // xz_o_ctx.lineWidth = 1;
+    // xz_o_ctx.moveTo($(this).val(),0);
+    // xz_o_ctx.lineTo($(this).val(),xz_o.height);
+    // xz_o_ctx.stroke();
+    // xz_o_ctx.beginPath(); 
+    // xz_o_ctx.setLineDash([15, 5, 3, 5]);
+    // xz_o_ctx.strokeStyle = "#FF0000";
+    // xz_o_ctx.lineWidth = 1;
+    // xz_o_ctx.moveTo(0, $("#xzz_slider").val());
+    // xz_o_ctx.lineTo(xz_o.width, $("#xzz_slider").val());
+    // xz_o_ctx.stroke();
+
+    $.getJSON($SCRIPT_ROOT + '/_get_yz_image', {
+        z_val: $("#yzz_slider").val(),
+        y_val: $("#yzy_slider").val(),
+        x_val: this.value,
+      }, function(data) {
+        $("#result").text(data.yz_result);
+        current_yz_image =  data.yz_result;
+        redraw(current_yz_image, "Canvas_yz")
+      });
+      return false;
+  });
+});
+</script>
+<style>
+.slidecontainer {
+  width: 100%;
+}
+.slider {
+  -webkit-appearance: none;
+  height: 5px;
+  background: #d3d3d3;
+  outline: none;
+  opacity: 0.7;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+}
+.slider:hover {
+  opacity: 1;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 25px;
+  background: #4CAF50;
+  cursor: pointer;
+}
+.slider::-moz-range-thumb {
+  width: 10px;
+  height: 25px;
+  background: #4CAF50;
+  cursor: pointer;
+}
+.verticalcontainer {
+  width: 100%;
+  height: 100%;
+}
+.vertical {
+  writing-mode: bt-lr;
+  -webkit-appearance: slider-vertical;
+  width: 10px;
+  background: #d3d3d3;
+  outline: none;
+  opacity: 0.7;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+  -webkit-transform: rotate(180deg);
+  -moz-transform: rotate(180deg);
+  -o-transform: rotate(180deg);
+  -ms-transform: rotate(180deg);
+  transform: rotate(180deg)
+}
+.vertical:hover {
+  opacity: 1;
+}
+.vertical::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 35px;
+  height: 10px;
+  background: #4CAF50;
+  cursor: pointer;
+}
+.vertical::-moz-range-thumb {
+  width: 35px;
+  height: 10px;
+  background: #4CAF50;
+  cursor: pointer;
+}
+
+input[type=range][orient=vertical]
+{
+    writing-mode: bt-lr; /* IE 
+    -webkit-appearance: slider-vertical; /* WebKit */
+    width: 8px;
+    height: 175px;
+    padding: 0 5px;
+}
+table, th, td {
+  border: 1px solid black;
+  border-collapse: collapse; 
+}
+#Canvas_xy{
+    position:relative;
+}
+#Canvas_xy_overlay{
+    position: absolute;
+    left: calc(100% - 10px);
+    z-index: 10;
+}
+/*#x_slider {
+  direction: rtl;
+}*/
+    .btn
+    {
+        margin:5px;
+        /*width:30px;*/
+        height:30px;
+    }
+        .btn2
+    {
+      position: relative;
+        
+        /*top: 5px;*/
+        left: 200px;
+        /*margin:20px;*/
+        /*width:50px;*/
+    }
+    table {
+    /*border: 1px solid #CCC;*/
+    border: none;
+    border-collapse: collapse;
+}
+
+td {
+    border: none;
+}
+
+
+#minRange {
+  /*direction: rtl;*/
+ background:  #82CFD0 ;
+  border: solid 1px #82CFD0;
+  border-radius: 8px;
+  /*height: 7px;*/
+  /*width: 356px;*/
+  outline: none;
+  transition: background 450ms ease-in;
+  -webkit-appearance: none;
+
+}
+#maxRange {
+  /*direction: rtl;*/
+ background: , #82CFD0 ;
+  border: solid 1px #82CFD0;
+  border-radius: 8px;
+  /*height: 10px;*/
+  /*width: 356px;*/
+  outline: none;
+  transition: background 450ms ease-in;
+  -webkit-appearance: none;
+
+}
+
+
+
+</style>
+
+      <!-- HEADER  -->
+
+<table style="width:100%">
+    <tr>
+
+        <td colspan="5" style="height:50px">
+            <!-- <input id="x_slider" type="range" min="1" max={{image_shape[2]}} step="1" value="15" name="x_slider"> -->
+            <!-- <input id="y_slider" type="range" min="1" max={{image_shape[1]}} step="1" value="150" name="y_slider"> -->
+          <!-- </p> -->
+           <input type="file" id="selectFile" webkitdirectory directory multiple>
+           <button id = 'render'> Render </button>
+
+              <div id="pngXZImage" >
+        <canvas width="52" height="52" style="width: 52px; height: 52px;"></canvas>
+      </div>
+          
+          <div class='wrap'>
+            <label id="min_val"></label>
+            <input id='minRange' type='range' min='0' value='0' max='50' class="slider"/>
+            <input id='maxRange' type='range' min='50' value='100' max='100' class="slider"/>
+            <label id="max_val"></label>
+          </div>
+          
+
+
+            <button id = 'zoom_in' class="btn"> + </button>
+            <button id = 'zoom_out' class="btn"> - </button>
+            <button id="capture" class="btn">CAPTURE</button>
+             <button id="RESET" class="btn2">Reset</button>
+             <!-- <button id="x256" class="btn">I-</button> -->
+<!-- <div class="row">
+        <form class="form-horizontal">
+            <div class="form-group">
+               
+            </div>
+        </form>
+    </div> -->
+            <!-- <input type="file" id="filepicker" name="fileList" webkitdirectory multiple/> -->
+            <div id="result"> {{image_aspect_ratio[0]}} </div>
+        </td>
+    </tr>
+    <tr>
+      <!-- LIST MEANU  -->
+        <td rowspan = "4" style="width:100px" valign="top">
+          POINTS:
+          [X,Y,Z]
+          <table id="metCenters" >
+  <tr>
+    <td  valign="top"> </td>
+  </tr>
+</table>
+  
+        </td>
+        <!-- SLIDER XYY  -->
+         <td rowspan = "3" style="width:20px">
+          <input id="xyy_slider" type="range" min="0" max="512" value="0" step="1" class="slider vertical" 
+                    style="height: 512px ;"  >
+        </td>
+        <!--  XY  -->
+         <td rowspan = "3">
+              <div 
+              style="position:relative;"> 
+                  <div id="dicomImageWrapper" style="width:512px;height:512px;position:relative;color:white"
+         oncontextmenu="return false"
+         onmousedown="return false">
+
+        <div id="dicomImage"
+             style="width:512px;height:512px;top:0px;left:0px;position:absolute">
+        </div>
+
+        <div id="topleft" class="overlay" style="position:absolute;top:0px;left:0px">
+            Patient Name
+        </div>
+        <div id="topright" class="overlay" style="position:absolute;top:0px;right:0px">
+            Render Time:
+        </div>
+        <div id="bottomright" class="overlay" style="position:absolute;bottom:0px;right:0px">
+            Zoom:
+        </div>
+        <div id="bottomleft" class="overlay" style="position:absolute;bottom:0px;left:0px">
+            WW/WC:
+        </div>
+        <canvas id="Canvas_xy_overlay" width="512" height="512" 
+                 style="border:1px solid #000fff; position: absolute; left: 0px; top: 0px; z-index: 1;"></canvas>
+      </div>
+             <!--  <canvas id="Canvas_xy" width="800" height="520" 
+                 style="border:2px solid #fff000; position: absolute; left: 0; top: -260; z-index: 0;"></canvas>
+               -->
+            </div>
+        </td>
+        <!-- SLIDER XZZ  -->
+         <td style="width:20px;">
+          <input id="xzz_slider" type="range" min="0" max="246" value="0" step="1" class="slider vertical" 
+                    style="height: 246px;"  >
+        </td>
+        <!--  XZ  -->
+         <td>
+
+              <div 
+              style="position:relative;"> 
+                  <div id="dicomImageWrapper_XZ" style="width:400px;height:246px;position:relative;color:white"
+                   oncontextmenu="return false"
+                   onmousedown="return false">
+                  <div id="dicomImage_XZ"
+                       style="width:400px;height:246px;top:0px;left:0px;position:absolute">
+                  </div>
+        <canvas id="Canvas_xz" width="400" height="246" 
+                 style="border:1px solid #000fff; position: absolute; left: 0px; top: 0px; z-index: 1;"></canvas>
+        <canvas id="Canvas_xz_overlay" width="400" height="246" 
+                 style="border:1px solid #000fff; position: absolute; left: 0px; top: 0px; z-index: 1;"></canvas>
+      </div>
+
+            </div>
+
+
+
+    <!--       <div style="position: relative;">
+              <canvas id="Canvas_xz" width="400" height="246" 
+                 style="border:2px solid #fff000; position: absolute; left: 0; top: -125; z-index: 0;"></canvas>
+              <canvas id="Canvas_xz_overlay" width="400" height="246" 
+                 style="border:1px solid #000fff; position: absolute; left: 0; top: -125; z-index: 1;"></canvas>
+              </div> -->
+        </td>
+    </tr>
+    <tr>
+      <!-- EMPTY  -->
+        <td>
+        </td >
+        <!-- SLIDER XZX  -->
+        <td style="height:20px">
+            <input id="xzx_slider" type="range" min="0" max="400" value="0" step="1" class="slider" 
+            style="width: 400px;">
+        </td>
+    </tr>
+        <tr>
+          <!-- SLIDER YZZ  -->
+        <td style="width:20px">
+          <input id="yzz_slider" type="range" min="0" max="246" value="0" step="1" class="slider vertical"
+          style="height: 246px;">
+        </td>
+        <!-- YZ  -->
+        <td>
+            <div 
+              style="position:relative;"> 
+                  <div id="dicomImageWrapper_YZ" style="width:400px;height:246px;position:relative;color:white"
+                   oncontextmenu="return false"
+                   onmousedown="return false">
+                  <div id="dicomImage_YZ"
+                       style="width:400px;height:246px;top:0px;left:0px;position:absolute">
+                  </div>
+        <canvas id="Canvas_yz" width="400" height="246" 
+                 style="border:1px solid #000fff; position: absolute; left: 0px; top: 0px; z-index: 1;"></canvas>
+        <canvas id="Canvas_yz_overlay" width="400" height="246" 
+                 style="border:1px solid #000fff; position: absolute; left: 0px; top: 0px; z-index: 1;"></canvas>
+      </div>
+            </div>
+
+        </td>
+    </tr>
+        <tr>
+          <!-- EMPTY  -->
+        <td>
+        </td>
+        <!-- SLIDER XYX  -->
+        <td style="height:20px">
+              <input id="xyx_slider" type="range" min="0" max="512" value="0" step="1" class="slider" 
+              style="width: 512px;" >
+        </td>
+        <!-- EMPTY  -->
+        <td>
+         
+        </td>
+        <!-- SLIDER YZY  -->
+        <td style="height:20px">
+            <input id="yzy_slider" type="range" min="0" max="400" value="0" step="1" class="slider" 
+           style="width: 400px;">
+        </td>
+    </tr>
+</table>

@@ -1,0 +1,328 @@
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+<!-- <script type='text/javascript' src="{{url_for('static', filename='/js/controller.js') }}"></script> -->
+<script type='text/javascript'>
+  $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
+  $(document).ready(function() {
+  $("#z_slider").change(function(){
+    $("#result").text(this.value);
+    $.getJSON($SCRIPT_ROOT + '/_get_xy_image', {
+        z_val: this.value,
+        y_val: $("#y_slider").val(),
+        x_val: $("#x_slider").val(),
+      }, function(data) {
+        $("#result").text(data.xy_result);
+        // $('#z_image').attr('src',data.xy_result);
+        // var canvas = $('#Canvas_xy');
+        const xy_canvas = document.getElementById("Canvas_xy");
+        const xy_context = xy_canvas.getContext("2d");
+        // xy_context.canvas.width  = window.innerWidth*2/3;
+        const slider_xy_x = document.getElementById("xy_x")
+        // slider_xy_x.style.width = xy_context.canvas.width;
+        const slider_xy_y = document.getElementById("xy_y")
+        slider_xy_y.style.width = 500;
+        slider_xy_y.style.hight = 5;
+        var xy_img = new Image();
+        xy_img.src = data.xy_result;
+        xy_img.onload = () => { xy_context.drawImage(xy_img, 0, 0)}
+      });
+      return false;
+    });
+  $("#y_slider").change(function(){
+        $("#result").text(this.value);
+    $.getJSON($SCRIPT_ROOT + '/_get_xz_image', {
+        z_val: $("#z_slider").val(),
+        y_val: this.value,
+        x_val: $("#x_slider").val(),
+      }, function(data) {
+        $("#result").text(data.xz_result);
+        const xz_canvas = document.getElementById("Canvas_xz");
+        const xz_context = xz_canvas.getContext("2d");
+        // xz_context.canvas.width  = window.innerWidth*2/3;
+        // const slider_xz_x = document.getElementById("xz_x")
+        // slider_xz_x.style.width = xz_context.canvas.width;
+        // const slider_xz_y = document.getElementById("xz_y")
+        // slider_xz_y.style.width = 500;
+        // slider_xz_y.style.hight = 5;
+        var xz_img = new Image();
+        xz_img.src = data.xz_result;
+        xz_img.onload = () => { xz_context.drawImage(xz_img, 0, 0)}
+      });
+      return false;
+  });
+  $("#x_slider").change(function(){
+        $("#result").text(this.value);
+    $.getJSON($SCRIPT_ROOT + '/_get_yz_image', {
+        z_val: $("#z_slider").val(),
+        y_val: $("#y_slider").val(),
+        x_val: this.value,
+      }, function(data) {
+        $("#result").text(data.yz_result);
+        const yz_canvas = document.getElementById("Canvas_yz");
+        const yz_context = yz_canvas.getContext("2d");
+        // yz_context.canvas.width  = window.innerWidth*2/3;
+        // const slider_xy_x = document.getElementById("xy_x")
+        // slider_xy_x.style.width = xy_context.canvas.width;
+        // const slider_xy_y = document.getElementById("xy_y")
+        // slider_xy_y.style.width = 500;
+        // slider_xy_y.style.hight = 5;
+        var yz_img = new Image();
+        yz_img.src = data.yz_result;
+        yz_img.onload = () => { yz_context.drawImage(yz_img, 0, 0)}
+      });
+      return false;
+  });
+});
+</script>
+<style>
+ .container {
+  display: grid;
+  /*grid-template-columns: repeat(5, 1fr);*/
+  grid-template-areas:
+      'hd hd hd hd hd'
+      'tb xyy xy xzz xz'
+      'tb xyy xy xzz xzx'
+      'tb xyy xy xyz xy'
+      'tb xyy xyx xyz xzy';
+  width: 1220px;
+  height:610px;
+  
+}
+.container div {
+  color:#fff;
+  text-align:center;
+}
+.block_hd {
+  grid-area: hd;
+  grid-row: 1 / 5;
+  grid-column: 1 / 5;
+  background:lightgray;
+  width: 1220px;
+  height: 100px;
+}
+.block_tb {
+  grid-area: tb;
+  grid-row: 2 / 5;
+  grid-column: 1 / 5;
+  background:darkgray;
+  width: 100px;
+  height: 510px;
+}
+.block_xy_sy {
+  grid-area: xyy;
+  grid-row: 2 / 5;
+  grid-column: 2 / 5;
+  background:pink;
+  width: 10px;
+  height: 500px;
+}
+.block_xy {
+  grid-area: xy;
+  grid-row: 2 / 5;
+  grid-column: 3 / 5;
+  background:red;
+  width: 800px;
+  height: 500px;
+}
+.block_xy_sx {
+  grid-area: xyx;
+  grid-row: 3 / 5;
+  grid-column: 3 / 5;
+  background:darkred;
+  width: 800px;
+  height: 10px;
+}
+.block_xz_sz {
+  grid-area: xzz;
+ grid-row: 2 / 5;
+  grid-column: 4 / 5;
+  background:lightgreen;
+  width: 10px;
+  height: 250px;
+}
+.block_xz {
+  grid-area: xz;
+ grid-row: 2 / 5;
+  grid-column: 5 / 5;
+  background:green;
+  width: 300px;
+  height: 250px;
+}
+
+.block_xz_sx {
+  grid-area: xzx;
+ grid-row: 3 / 5;
+  grid-column: 5 / 5;
+  background:darkgreen;
+  width: 300px;
+  height: 10px;
+}
+.block_yz {
+  grid-area: yz;
+  grid-row: 4 / 5;
+  grid-column: 5 / 5;
+  background:blue;
+  width: 300px;
+  height: 250px;
+}
+.block_yz_sz {
+  grid-area: yzz;
+ grid-row: 4 / 5;
+  grid-column: 4 / 5;
+  background:lightblue;
+  width: 10px;
+  height: 250px;
+}
+.block_yz_sy {
+  grid-area: yzy;
+ grid-row: 5 / 5;
+  grid-column: 5 / 5;
+  background:darkblue;
+  width: 300px;
+  height: 10px;
+}
+.slidecontainer {
+  width: 100%;
+}
+
+.slider {
+  -webkit-appearance: none;
+  width: 800px;
+  height: 5px;
+  background: #d3d3d3;
+  outline: none;
+  opacity: 0.7;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+}
+
+.slider:hover {
+  opacity: 1;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 25px;
+  background: #4CAF50;
+  cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+  width: 10px;
+  height: 25px;
+  background: #4CAF50;
+  cursor: pointer;
+}
+table, th, td {
+  border: 1px solid black;
+  border-collapse: collapse; 
+}
+
+</style>
+<table style="width:100%">
+    <tr>
+      <!-- HEADER  -->
+        <td colspan="5" style="height:100px">
+         
+        </td>
+    </tr>
+    <tr>
+      <!-- LIST MEANU  -->
+        <td rowspan = "4" style="width:100px">
+  
+        </td>
+        <!-- SLIDER XYY  -->
+         <td rowspan = "3" style="width:20px">
+          
+        </td>
+        <!--  XY  -->
+         <td rowspan = "3">
+          <canvas id="Canvas_xy" width="800" height="80" style="border:1px solid #000000;"></canvas>
+        </td>
+        <!-- SLIDER XZZ  -->
+         <td style="width:20px">
+          
+        </td>
+        <!--  XZ  -->
+         <td>
+          <canvas id="Canvas_xy" width="80" height="80" style="border:1px solid #000000;"></canvas>
+        </td>
+    </tr>
+    <tr>
+      <!-- EMPTY  -->
+        <td>
+        </td >
+        <!-- SLIDER XZX  -->
+        <td style="height:20px">
+        </td>
+    </tr>
+        <tr>
+          <!-- SLIDER YZZ  -->
+        <td style="width:20px">
+        </td>
+        <!-- YZ  -->
+        <td>
+          <canvas id="Canvas_xy" width="80" height="80" style="border:1px solid #000000;"></canvas>
+        </td>
+    </tr>
+        <tr>
+          <!-- EMPTY  -->
+        <td>
+        </td>
+        <!-- SLIDER XYX  -->
+        <td style="height:20px">
+
+        </td>
+        <!-- EMPTY  -->
+        <td>
+         
+        </td>
+        <!-- SLIDER YZY  -->
+        <td style="height:20px">
+          
+        </td>
+    </tr>
+</table>
+   <!-- <span id=image_shape></span> -->
+ <div class="container">
+      <div class="block_hd"> 
+            <input id="x_slider" type="range" min="1" max={{image_shape[2]}} step="1" value="15" name="x_slider">
+            <!-- <input id="y_slider" type="range" min="1" max={{image_shape[1]}} step="1" value="150" name="y_slider"> -->
+            <!-- <input id="z_slider" type="range" min="1" max={{image_shape[0]}} step="1" value="1" name="z_slider"> -->
+            <!-- <input id="result"> NaN </input> -->
+            <!-- <input type="file" id="filepicker" name="fileList" webkitdirectory multiple /> -->
+      </div>
+      <div class="block_tb">
+      </div>
+      <div class="block_xy_sy">
+           <!--  <input id="xy_y" type="range" min="1" max={{image_shape[1]}} value="0" step="1" class="slider" 
+                    style="transform: rotate(-90deg); transform-origin: -5px -5px;" > -->
+      </div>
+      <div class="block_xy">
+            <!-- <canvas id="Canvas_xy" width="800" height="500" style="border:1px solid #000000;"></canvas> -->
+      </div>
+      <div class="block_xy_sx">
+           <!--  <input id="xy_x" type="range" min="1" max={{image_shape[2]}} value="0" step="1" class="slider" > -->
+      </div>
+      <div class="block_xz_sz">
+          <!--   <input id="xz_z" type="range" min="1" max={{image_shape[0]}} value="0" step="1" class="slider" 
+                    style="transform: rotate(-90deg); transform-origin: -5px -5px;" > -->
+      </div>
+      <div class="block_xz">
+            <!-- <canvas id="Canvas_xz" width="400" height="250" style="border:1px solid #000000;"></canvas> -->
+      </div>
+      <div class="block_xz_sx">
+          <!--   <input id="xz_x" type="range" min="1" max={{image_shape[2]}} value="0" step="1" class="slider" > -->
+      </div>
+      <div class="block_yz_sz">
+        <!--     <input id="yz_z" type="range" min="1" max={{image_shape[0]}} value="0" step="1" class="slider" 
+                    style="transform: rotate(-90deg); transform-origin: -5px -5px;" > -->
+      </div>
+      <div class="block_yz">
+            <!-- <canvas id="Canvas_yz" width="400" height="250" style="border:1px solid #000000;"> -->
+      </div>
+      <div class="block_yz_sy">
+           <!--  <input id="yz_y" type="range" min="1" max={{image_shape[1]}} value="0" step="1" class="slider" > -->
+      </div>
+</div>

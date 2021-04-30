@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+.idea
+coverage/
+documentation/
+docs/_book
+docs/api.md
+dist/
+.DS_Store

@@ -1,0 +1,114 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <!-- twitter bootstrap CSS stylesheet - not required by cornerstone -->
+    <link href="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="container">
+
+    <h1>
+        ctimage/index.html
+    </h1>
+
+    This is an example of displaying a ct image along with buttons to set ww/wc presets.  You can
+    manually adjust the ww/wc by dragging the left mouse button
+
+    <br>
+    <br>
+
+    <div id="dicomImage"
+        style="width:512px;height:512px"
+        oncontextmenu="return false"
+        onmousedown="return false">
+    </div>
+
+    <br>
+
+    <button id="softTissue" class="btn">Soft Tissue</button>
+    <button id="lung" class="btn">Lung</button>
+    <button id="bone" class="btn">Bone</button>
+    <span id="window">WW/WC:</span>
+</div>
+</body>
+
+<!-- include the cornerstone library -->
+<script src="../../dist/cornerstone.js"></script>
+<script>window.cornerstone || document.write('<script src="https://unpkg.com/cornerstone-core">\x3C/script>')</script>
+
+<!-- include special code for these examples which provides images -->
+<script src="../exampleImageIdLoaderCt.js"></script>
+
+<script>
+    // image enable the dicomImage element
+    const element = document.getElementById('dicomImage');
+    cornerstone.enable(element);
+
+    // load and display the image
+    const imageId = 'ctexample://1';
+    cornerstone.loadImage(imageId).then(function(image) {
+        cornerstone.displayImage(element, image);
+
+        const viewport = cornerstone.getViewport(element);
+        document.getElementById('window').textContent = "WW/WC:" + Math.round(viewport.voi.windowWidth)
+            + "/" + Math.round(viewport.voi.windowCenter);
+
+        // Add event handler for the ww/wc presets
+        document.getElementById('softTissue').addEventListener('click', function() {
+            let viewport = cornerstone.getViewport(element);
+            viewport.voi.windowWidth = 400;
+            viewport.voi.windowCenter = 20;
+            cornerstone.setViewport(element, viewport);
+            document.getElementById('window').textContent = "WW/WC:" + Math.round(viewport.voi.windowWidth)
+                + "/" + Math.round(viewport.voi.windowCenter);
+        });
+
+        document.getElementById('lung').addEventListener('click', function() {
+            let viewport = cornerstone.getViewport(element);
+            viewport.voi.windowWidth = 1600;
+            viewport.voi.windowCenter = -600;
+            cornerstone.setViewport(element, viewport);
+            document.getElementById('window').textContent = "WW/WC:" + Math.round(viewport.voi.windowWidth)
+                + "/" + Math.round(viewport.voi.windowCenter);
+        });
+
+        document.getElementById('bone').addEventListener('click', function() {
+            let viewport = cornerstone.getViewport(element);
+            viewport.voi.windowWidth = 2000;
+            viewport.voi.windowCenter = 300;
+            cornerstone.setViewport(element, viewport);
+            document.getElementById('window').textContent = "WW/WC:" + Math.round(viewport.voi.windowWidth)
+                + "/" + Math.round(viewport.voi.windowCenter);
+        });
+
+
+        // add event handlers to mouse move to adjust window/center
+        element.addEventListener('mousedown', function (e) {
+            let lastX = e.pageX;
+            let lastY = e.pageY;
+
+            function mouseMoveHandler(e) {
+                const deltaX = e.pageX - lastX;
+                const deltaY = e.pageY - lastY;
+                lastX = e.pageX;
+                lastY = e.pageY;
+
+                let viewport = cornerstone.getViewport(element);
+                viewport.voi.windowWidth += (deltaX / viewport.scale);
+                viewport.voi.windowCenter += (deltaY / viewport.scale);
+                cornerstone.setViewport(element, viewport);
+                document.getElementById('window').textContent = "WW/WC:" + Math.round(viewport.voi.windowWidth)
+                    + "/" + Math.round(viewport.voi.windowCenter);
+            }
+
+            function mouseUpHandler() {
+                document.removeEventListener('mousemove', mouseMoveHandler);
+                document.removeEventListener('mouseup', mouseUpHandler);
+            }
+
+            document.addEventListener('mousemove', mouseMoveHandler);
+            document.addEventListener('mouseup', mouseUpHandler);
+        });
+    });
+</script>
+</html>

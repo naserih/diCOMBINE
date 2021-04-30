@@ -1,0 +1,137 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <!-- twitter bootstrap CSS stylesheet - not required by cornerstone -->
+    <link href="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="container">
+
+    <h1>
+        resize/index.html
+    </h1>
+
+    This is an example of resizing the enabled image
+
+    <br>
+
+    When the enabled element's width or height changes, you must call resize() so cornerstone can update
+    the canvas width and height. The image is automatically rescaled. When the image fitted the window
+    before the resize then it will also fit after the resize. If the image was zoomed or panned before
+    the resize then the image will be rescaled accordingly. Try this out here by dragging the red square
+    in the right corner of the image.
+
+    <br>
+    <br>
+    <label>Row Pixel Spacing:</label>
+    <input id="rowPixelSpacing" type="text" value="" />
+    <span>&#32;</span>
+    <label>Column Pixel Spacing:</label>
+    <input id="colPixelSpacing" type="text" value="" />
+    <br>
+    <br>
+    <button id="reset" class="btn">Reset & fit to window</button>
+    <button id="randomZoomPan" class="btn">Apply random zoom & pan</button>
+
+    <br>
+    <br>
+
+    <div style="display:inline-block;position:relative">
+      <div
+        id="resizeKnob"
+        style="position:absolute;right:-5px;bottom:-5px;width:20px;height:20px;background:red;cursor:se-resize">
+      </div>
+      <div id="dicomImage" style="width:256px;height:256px"
+           oncontextmenu="return false"
+           onmousedown="return false">
+      </div>
+    </div>
+
+</div>
+</body>
+
+<!-- include the cornerstone library -->
+<script src="../../dist/cornerstone.js"></script>
+<script>window.cornerstone || document.write('<script src="https://unpkg.com/cornerstone-core">\x3C/script>')</script>
+
+<!-- include special code for these examples which provides images -->
+<script src="../exampleImageIdLoader.js"></script>
+
+<script>
+    // image enable the dicomImage element
+    const imageId = 'example://1';
+    const element = document.getElementById('dicomImage');
+    cornerstone.enable(element);
+    cornerstone.loadImage(imageId).then(function(image) {
+        cornerstone.displayImage(element, image);
+
+        document.getElementById('rowPixelSpacing').value = image.rowPixelSpacing;
+        document.getElementById('colPixelSpacing').value = image.columnPixelSpacing;
+    });
+
+    function doResize(width, height) {
+        if (width < 100)
+            width = 100
+        if (height < 100)
+            height = 100
+
+        element.style.width = width + 'px';
+        element.style.height = height + 'px';
+        cornerstone.resize(element);
+    }
+
+    function getRandomFloat(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+
+    document.getElementById('resizeKnob').addEventListener('mousedown', function (e) {
+        const initWidth = element.clientWidth;
+        const initHeight = element.clientHeight;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        function dragResize (e) {
+            const x = e.clientX - startX;
+            const y = e.clientY - startY;
+            const w = initWidth + x;
+            const h = initHeight + y;
+            doResize(w, h);
+        }
+        document.addEventListener('mousemove', dragResize);
+        document.addEventListener('mouseup', function (e) {
+            document.removeEventListener('mouseup', arguments.callee);
+            document.removeEventListener('mousemove', dragResize);
+        })
+    });
+
+    document.getElementById('reset').addEventListener('click', function (e) {
+        let image = cornerstone.getImage(element);
+
+        element.style.width = '256px';
+        element.style.height = '256px';
+
+        image.rowPixelSpacing = parseInt (document.getElementById('rowPixelSpacing').value, 10);
+        image.columnPixelSpacing = parseInt(document.getElementById('colPixelSpacing').value, 10);
+
+        cornerstone.resize(element, true);
+    });
+
+    document.getElementById('randomZoomPan').addEventListener('click', function (e) {
+        let viewport = cornerstone.getViewport(element);
+        let image = cornerstone.getImage(element);
+        const scale = viewport.scale;
+        const minScale = scale - scale / 2;
+        const maxScale = scale + scale / 2;
+        viewport.scale = getRandomFloat(minScale, maxScale);
+        viewport.translation.x = getRandomFloat(-50.0, 50.0)
+        viewport.translation.y = getRandomFloat(-50.0, 50.0)
+
+
+
+        image.rowPixelSpacing = parseInt(document.getElementById('rowPixelSpacing').value, 10);
+        image.columnPixelSpacing = parseInt(document.getElementById('colPixelSpacing').value, 10);
+
+        cornerstone.setViewport(element, viewport);
+    });
+
+</script>
+</html>

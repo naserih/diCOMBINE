@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+
+  <head>
+    <meta charset="utf-8">
+    <title>About diCOMBINE</title>
+  </head>
+  <style>
+  body {
+  font-family: Helvetica, Arial, sans-serif;
+}
+.listNoSel
+    {
+  margin:0px;
+  background-color: #E8CEBF;
+  border: 1;
+  color: black;
+  padding: 2px 4px;
+  cursor: pointer;
+  font-size: 12px;
+    }
+.txtbtn {
+  margin:0px;
+  border: none;
+  background-color: inherit;
+  background: #eee;
+  padding: 1px 2px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align:left;
+  display: inline-block;
+}
+
+.btn
+    {
+  margin:0px;
+        /*width:30px;*/
+   /*height:30px;*/
+  background-color: #00386c;
+
+  border: none;
+  color: #f1d1bd;
+  padding: 0px 4px;
+  cursor: pointer;
+  font-size: 20px;
+    }
+    .ico
+    {
+        margin:0px;
+        /*width:30px;*/
+        /*height:30px;*/
+        background-color: #00386c;
+
+  border: none;
+  color: #f1d1bd;
+  padding: 2px 4px;
+  /*cursor: pointer;*/
+  /*font-size: 20px;*/
+    }
+
+        /* Darker background on mouse-over */
+.btn:hover {
+  background-color: #808080;
+  /*background-color: #00386c;*/
+}
+.pink {
+  background-color: Transparent;
+   color: #FA8072;
+    font-size: 22px;
+}
+.pink:hover {
+  background-color: Transparent;
+  color: #808080;
+  /*background-color: #00386c;*/
+}
+    .orange{
+      background-color:#ff8c00;
+    }
+    .red{
+      /*background-color:#5e0000;*/
+      background-color:#8b0000;
+
+    }
+
+    .green{
+      background-color:green;
+
+    }
+    .darkgray{
+      background-color:darkgray;
+
+
+}
+
+    .preClass{
+      font-size: 16px;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      line-height: 60%;
+    }
+
+</style>
+  <body>
+    {% extends "template.html" %}
+    {% block content %}
+    
+    <h1> About diCOMBINE </h1>
+    <p> diCOMBINE is a DICOM 3D bone met labeling tool developed using the Python Flask framework.
+    </p>
+    <h1> BUTTONS </h1>
+<pre class="preClass"> 
+  <li><i class="fas fa-key"></i> <strong> ACCESS KEY:</strong> You need an access key to log in to the app  </li>
+  <li><i class="ico fas fa-info-circle pink"></i><strong> INFO:      </strong> Opens the help page in a new tab </li>
+  <li><i class="ico fas fa-eraser"></i><strong> ERASER:    </strong> Removes the last captured point </li>
+  <li><i class="ico fas fa-chevron-left"></i><strong> PREVIOUS:  </strong>  Loads the previous patient  </li>
+  <li><i class="ico fas fa-chevron-right"></i><strong> NEXT:      </strong> Loads the next patient </li>
+  <li><i class="ico fas fa-sync orange"></i><strong> RELOAD:    </strong> Reloads the current patient </li>
+  <li><i class="ico fas fa-search-plus"></i><strong> ZOOM IN:   </strong> Upscales the view </li>
+  <li><i class="ico fas fa-search-minus"></i><strong> ZOOM OUT:  </strong> Downscales the view </li>
+  <li><i class="ico far fa-dot-circle red"></i><strong> CAPTURE:   </strong> Captures the indicator's position </li>
+  <li><i class="fas fa-adjust"></i> <strong> WINDOW:    </strong> Adjusts the axial window center. </li>
+     <li><i class="fas fa-arrows-alt-h"></i><strong> LEVEL:     </strong> Adjusts the axial window width.</li>
+     <li><i class="listNoSel"> P0 </i><strong> PATIENT: </strong>  Loads the selected patient</li>
+     <li><i class="txtbtn"> update</i><strong> UPDATE:  </strong>   Updates the comment for a selected point. If no point is selected, the comment will be added as a new point (0,0,0) </li>
+     <li><i class="txtbtn"> 125,240,38 </i><strong> POINT: </strong>  Loads the point and its comment </li>
+      <li><i class="txtbtn"> remove </i><strong> REMOVE:  </strong>  Removes the selected point from the points list. The remove button is deactivated if no point is selected. </li>
+   </pre>
+
+<h1> ACTIONS </h1>
+<pre class="preClass"> 
+  <li> <strong>SCROLL:      </strong> Mouse wheel scroll in each view changes moves the slide in that view.   </li>
+  <li> <strong>DOUBLE CLICK:</strong> Double-click on a point in each view moves the indicator to that point.   </li>
+  <li> <strong>DRAG:        </strong> Holding the left mouse button and move the mouse to pan each view. </li>
+  <li> <strong>SLIDE:       </strong> Indicators can also be moved using vertical and horizontal scales in each view  </li>
+  <li> <strong>Select a Patient: </strong> Click on a patient tag in the patients list to load the patient's CT file.  </li>
+  <li> <strong>Select a Point: </strong> Click on a point in the points list to load the point and its comment.  </li>
+</pre>
+
+<h1> TIPS </h1>
+<p> 
+  <li>The <strong>HELP</strong> button will redirect you to this help page.</li>
+  <li>Please check your email for the access key or email <a href = "mailto: hossein.naseri@mail.mcgill.ca">me</a> if your access key is not working.</li>
+  <li> Press <strong>RELOAD</strong> if the background color of the <strong>RELOAD</strong> button is orange. <mark>one reload should be enough</mark></li>
+  <li> Window and level adjustments will be set for the current patient only.</li>
+  <li> Window/Level are not adjustable in the sagittal and coronal views yet.</li>
+  <li> The captured points will be automatically saved into the database however you can edit the selected point anytime you want. </li>
+  <li> You can capture more points or remove points and your actions will be saved automatically. </li>
+  <li>  To remove a point you can use eraser button to remove the last point or you can select a point from the points list and use the remove option.</li>
+    <li>  You can type a comment before capturing the point and pressing the capture button will save both point and comment.</li>
+      <li> To add/edit a comment to/in the previously captured point, select the point from the points list and then, type/edit your comment. </li><li> You <span style="text-decoration: underline;">MUST</span>  press the UPDATE button to save the comment</li>
+        <li>  The comment will <span style="text-decoration: underline;">NOT</span> be saved if you do not press update button</li>
+          <li>  To put a general comment about the patient, first,  select the patient, then, type the command and press update. The comment will be added as a new point [0,0,0]. </li>
+          <li>Comments for point [0,0,0] will be considered as a note for entire CT and not a specific point.</li>
+  <li> The frames, scalings and views will reload if you press the reload button or go to the previous/next patient.</li>
+  <li> At any time, you can go back to the previously labeled patients and review/edit your labels</li>
+  <li> reloading the frame will <span style="text-decoration: underline;">NOT</span> remove the points that are saved to the database.</li>
+  <li> You need to use your access key to log into the app if you refresh your browser. </li>
+  <li> If you refresh the page your previous labels will be loaded to the app. [you will continue from where you left last time.] </li>
+
+   </p>
+
+<h1> How to Use </h1>
+    <p>Using your <strong>ACCESS KEY</strong> <i class="fas fa-key"></i> log into the diCOMBINE app.</p> 
+    Once loaded, you will see a 3D view of DICOM files for the first patient. <p> Press <i class="ico fas fa-sync orange"></i> to fully load patients' data. The background color of the reload button will turn green if the patient's data is correctly loaded <i class="ico fas fa-sync green"></i> </p> <p> Use
+    <i class="fas fa-adjust"></i> and <i class="fas fa-arrows-alt-h"></i> buttons to adjust the window center and window width in the axial view.
+    <p> Use <strong>ZOOM IN</strong> (<i class="ico fas fa-search-plus"></i>) and <strong>ZOOM OUT</strong>(<i class="ico fas fa-search-minus"></i>) buttons to zoom in and zoom out the views. All three views will be magnified at the same time. </p>
+    <p> Click and hold down the left mouse button to pan in each view.  Other views will be adjusted accordingly. </p>
+    <p> Use the mouse wheel scroll in any of the views to change slices in that view. Other views will be adjusted accordingly.</p>
+    <p> Use the mouse double click in any of the views to set the indicator position to the desired point in all 3 views. 
+    <p> Once the indicator is in the center of the bone met in all three views, click the <strong>CAPTURE</strong> (<i class="ico far fa-dot-circle red"></i>) button to capture the position of the bone met center. The bone met 3D pixel position will be added to the points list on the left side of the window. 
+<li> Note 1: Multiple bone met centers can be captured for each patient. </li>
+      <li> Note 2: Please read the next section about the labeling criteria. </li>
+  </p>
+      <p> You can add a comment for a point before pressing the capture button. Or you can select a captured point and type/edit your comment and press update. <li> Note 1: Do not forget to press the update button to save your comment. </li></p>
+    <p> Pressing the <strong>ERASER</strong> (<i class="ico fas fa-eraser"></i>) button will remove the last captured point from the list. </p>
+    <p> You can remove any point from the list by selecting the point and pressing the remove button. </p>
+     <p> Removed points can not be restored. If you remove a point if will be immediately  removed from the database.</p>
+    <p> Use  <strong>PREVIOUS</strong> (<i class="ico fas fa-chevron-left"></i>) or <strong>NEXT</strong> (<i class="ico fas fa-chevron-right"></i>) buttons to load the previous or next patient. Then, press <strong>RELOAD</strong> (<i class="ico fas fa-sync orange"></i>) button to reload the patient's metadata.</li>
+  </p>
+      <p> You can also  load a patient file by clicking on their file in the patient list.
+  </p>
+  <p> By pressing the <strong>RELOAD</strong> (<i class="ico fas fa-sync orange"></i>) button at any stage, the setting will be reset but the captured points will <span style="text-decoration: underline;">NOT</span> be removed. <p>The saved points will  <span style="text-decoration: underline;">NOT</span> be removed if you <strong>REFRESH</strong> the app or <strong>RELOAD</strong> the page.</p>
+  
+
+<h1> Bone Met Labeling Criteria </h1>
+  <h3> <span style="text-decoration: underline;">If your Access Code is like "R*M****" then you are labeling bone met patients. </span>
+  </h3>
+<li> 
+Make sure that the indicator is in the center of the bone met in all 3 views when you press the capture. </li>
+<li> 
+For this project, we will only focus on spinal metastases. So, do <span style="text-decoration: underline;">NOT</span> label a bone met if it is not in the spine. </li>
+<li> You do  <span style="text-decoration: underline;">NOT</span> need to capture all the bone met centers. Capture one or a few significant bone met lesions. </li>
+    <li> In the comment for each point, if possible, please specify if the point is lytic lesions or blastic lesions.
+      </li>
+    <li> In the comment for each point please specify the bone met location, if possible.  </li>
+    <li> For general comments about the patient use point [0,0,0].  </li>
+
+
+
+<h1> Healthy (non-metastatic) Bone Labeling Criteria </h1>
+<h3> <span style="text-decoration: underline;">If your Access Code is like "C*H****" then you are labeling healthy bone patients. </span>
+  </h3>
+<li> For this project, we will only focus on the spine. So, do not label a bone outside of the spine.</li>
+
+<li> Make sure that the indicator is in the center of the non-met bone in all 3 views when you press the capture.</li>
+
+<li> Make sure that there are no metastatic bone lesions within 3 cm of the selected point on the spine.</li>
+
+<li> For each patient capture 4 non-met bone lesions.
+
+<li> Try to sample from different parts of the bone.
+
+<li> In the comment for each point, if possible, please specify which part of the bone the sample is collected.
+
+<li> In the comment for each point, if possible, please specify the bone location in the spine.
+
+
+<h2> THANK YOU FOR USING diCOMBINE</h2>
+  
+   {% endblock %}
+</body>
+</html>
+
