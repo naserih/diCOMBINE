@@ -3,13 +3,13 @@ import io
 import numpy as np
 from dicom_utils import get_cts
 from PIL import Image, ImageEnhance, ImageOps
-import env
 import json
 import shutil
+from dotenv import load_dotenv
+load_dotenv()
 
-ROOT = ['TEST','MET', 'CTRL'][2]
-download_path = env.ARIA_DATABASE[ROOT]
-patient_file_path = env.PATIENTS_DATABASE[ROOT]
+download_path = os.getenv("ARIA_DATABASE")
+patient_file_path =  os.getenv("PATIENTS_DATABASE")
 
 def transfer_files():
     CT_tag = 'CT'
@@ -98,7 +98,7 @@ def main():
     # print('YES')
     # 
     original_files = os.listdir(download_path)
-    # transfer_files()
+    transfer_files()
 
     select_patient = ''
     patient_filenames = [f for f in os.listdir(patient_file_path) if select_patient in f]
@@ -108,10 +108,10 @@ def main():
     n = 0
 
     for patient in patient_filenames[n:]:
-        # patient_metadata = load_dicoms(patient)
+        patient_metadata = load_dicoms(patient)
         n += 1
         print("%s: %s/%s"%(patient,n,N))
-        # generate_XZ_YZ_views(patient, patient_metadata)
+        generate_XZ_YZ_views(patient, patient_metadata)
 
 
     for original_file in original_files:
