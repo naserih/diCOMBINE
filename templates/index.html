@@ -313,10 +313,32 @@ function check_patient_index(patient_index){
 
 
 function fillCommentBox(point_index){
+      console.log('patient_dic')
+      console.log(patient_dic)
       var comment_div = document.getElementById("comment");
       var met_comment = patient_dic[patient_index]['comments'][point_index]
+      var met_type = patient_dic[patient_index]['met_types'][point_index]
       // comment_div.innerHTML = met_comment;
       comment_div.value = met_comment;
+      // console.log('met_type')
+      // console.log(met_type)
+      if (met_type != ''){
+      document.getElementById(met_type).checked = true
+      document.getElementById("txt_lytic").style.color = 'black'
+      document.getElementById("txt_blastic").style.color = 'black'
+      document.getElementById("txt_mix").style.color = 'black'
+
+      }
+      else{
+        // $('#status').html(`Met type is not selected!`)
+        document.getElementById("txt_lytic").style.color = 'red'
+        document.getElementById("txt_blastic").style.color = 'red'
+        document.getElementById("txt_mix").style.color = 'red'
+        document.getElementById('lytic').checked = false
+        document.getElementById('blastic').checked = false
+        document.getElementById('mix').checked = false
+      }
+      
       
       xyxVal = patient_dic[patient_index]['points'][point_index][0]; 
       xyyVal = patient_dic[patient_index]['points'][point_index][1];
@@ -516,6 +538,7 @@ function fillCommentBox(point_index){
         cornerstone.setViewport(YZelement, YZviewport);
         // console.log('rescaled')
         _init_WL(XYelement)
+        _init_Z_WL(XZelement)
       }   
       
          
@@ -632,16 +655,19 @@ function fillCommentBox(point_index){
                 if (patients[i] in stored_points){
                     var prev_points =  stored_points[patients[i]]['points']
                     var prev_comments =  stored_points[patients[i]]['comments']
+                    var prev_met_types =  stored_points[patients[i]]['met_types']
                 }
                 else {
                  var prev_points = []  
                  var prev_comments = [] 
+                 var prev_met_types = []
                 }
                 patient_dic[i] = {
                     'file_name': patients[i],
                     'id': i,
                     'points' : prev_points,
-                    'comments' : prev_comments}
+                    'comments' : prev_comments,
+                    'met_types' : prev_met_types}
 
                 var scoreBoard = document.getElementById("patients_list")
                 var patientNote = document.createElement("DIV");
@@ -656,6 +682,12 @@ function fillCommentBox(point_index){
                     patient_index = Number(this.id); 
                     $('#status').html(`Patient `+ (patient_index+1) +` is loaded!`)
                     document.getElementById("comment").value = ""
+                    document.getElementById("txt_lytic").style.color = 'red'
+                    document.getElementById("txt_blastic").style.color = 'red'
+                    document.getElementById("txt_mix").style.color = 'red'
+                    document.getElementById("lytic").checked = false;
+                    document.getElementById("blastic").checked = false;
+                    document.getElementById("mix").checked = false;
                     // load_note(patient_index);
                     load_data(patient_index)
                     fillPointTable(patient_index)
@@ -757,41 +789,71 @@ function _init_WL(element){
   // console.log(viewport)
 
 }
+function _init_Z_WL(element){
+  const viewport = cornerstone.getViewport(element);
+  const image = cornerstone.getImage(element);
+  // console.log(image)
+  // console.log(viewport)
+  // console.log(image.minPixelValue)
+  // console.log(image.maxPixelValue)
+  // console.log(viewport.voi.windowCenter)
+  // console.log(viewport.voi.windowWidth)
+  document.getElementById("zWinCenter").min = image.minPixelValue
+  document.getElementById("zWinCenter").max = image.maxPixelValue
+  document.getElementById("zWinCenter").value =  viewport.voi.windowCenter 
+  document.getElementById("zWinWidth").min =  image.minPixelValue
+  document.getElementById("zWinWidth").max =  image.maxPixelValue
+   document.getElementById("zWinWidth").value =  viewport.voi.windowWidth
+  $('#zc_val').html(viewport.voi.windowCenter)
+  $('#zw_val').html(viewport.voi.windowWidth)
+  onImageRendered()
+  // console.log(viewport)
+
+}
 // document.getElementById('render').addEventListener('click', function (e) {
 
 // });
 
 
 document.getElementById("winCenter").oninput = function() {
-    const elementXY =  document.getElementById('XYFrame');
-    const viewport = cornerstone.getViewport(elementXY);
-    // var value = (this.value-this.min)/(this.max-this.min)*100
-    // this.style.background = 'linear-gradient(to right, white 0%, #fff ' + value + '%, #82CFD0 ' + value + '%, #82CFD0 100%)'
-    // if (this.value > Number($('#winWidth').val())){
-    //   this.value  = $('#winWidth').val()
-    // }
-    $('#c_val').html(this.value)
-    // $('#w_val').html($('#winWidth').val())
-     viewport.voi.windowCenter = this.value;
-     cornerstone.setViewport(elementXY, viewport);
+    const XYelement =  document.getElementById('XYFrame');
+    const XYviewport = cornerstone.getViewport(XYelement);
+    // $('#c_val').html(this.value)
+     XYviewport.voi.windowCenter = this.value;
+     cornerstone.setViewport(XYelement, XYviewport);
      onImageRendered()
   };
 
+document.getElementById("zWinCenter").oninput = function() {
+    const XZelement =  document.getElementById('XZFrame');
+    const XZviewport = cornerstone.getViewport(XZelement);
+    XZviewport.voi.windowCenter = this.value;
+    cornerstone.setViewport(XZelement, XZviewport);
+    const elementYZ =  document.getElementById('YZFrame');
+    const YZviewport = cornerstone.getViewport(elementYZ);
+    YZviewport.voi.windowCenter = this.value;
+    cornerstone.setViewport(YZelement, YZviewport);
+    onImageRendered()
+  };
 document.getElementById("winWidth").oninput = function() {
-          // var value = (this.value-this.min)/(this.max-this.min)*100
-          // this.style.background = 'linear-gradient(to right, #82CFD0 0%, #82CFD0 ' + value + '%, #fff ' + value + '%, white 100%)'
-          //  if (this.value < Number($('#winCenter').val())){
-          //   this.value  = $('#winCenter').val()
-          // }
-          $('#w_val').html(this.value)
-          // $('#c_val').html($('#winCenter').val())
-          const elementXY =  document.getElementById('XYFrame');
-          const viewport = cornerstone.getViewport(elementXY);
-          // viewport.voi.windowCenter = Number($('#winWidth').val())+(this.value+this.value)/2.0;
-           viewport.voi.windowWidth = this.value;
-
-          cornerstone.setViewport(elementXY, viewport);
-          onImageRendered()
+    // $('#w_val').html(this.value)
+    const XYelement =  document.getElementById('XYFrame');
+    const XYviewport = cornerstone.getViewport(XYelement);
+    XYviewport.voi.windowWidth = this.value;
+    cornerstone.setViewport(XYelement, XYviewport);
+    onImageRendered()
+        };
+document.getElementById("zWinWidth").oninput = function() {
+    // $('#w_val').html(this.value)
+    const XZelement =  document.getElementById('XZFrame');
+    const XZviewport = cornerstone.getViewport(XZelement);
+    XZviewport.voi.windowWidth = this.value;
+    cornerstone.setViewport(XZelement, XZviewport);
+    const YZelement =  document.getElementById('YZFrame');
+    const YZviewport = cornerstone.getViewport(YZelement);
+    YZviewport.voi.windowWidth = this.value;
+    cornerstone.setViewport(YZelement, YZviewport);
+    onImageRendered()
         };
 
 
@@ -803,21 +865,52 @@ document.getElementById("winWidth").oninput = function() {
         // console.log(eventData.viewport.voi.windowMax)
         // elementXY.addEventListener('cornerstoneimagerendered', onImageRendered);
         // onImageRendered()
+
+$('input:radio[name="radio"]').change(function(){
+        met_type = this.value
+        // console.log(met_type)        
+        // console.log(typeof patient_index)
+        // $("#note_"+patient_index).html(met_type);
+        document.getElementById("txt_lytic").style.color = 'black'
+        document.getElementById("txt_blastic").style.color = 'black'
+        document.getElementById("txt_mix").style.color = 'black'
+        patient_dic[patient_index]['met_types'][point_index] = met_type;
+      })
+
 document.getElementById('update_comment').addEventListener('click', function (e) {
 var met_comment = document.getElementById("comment").value;
 if (remove_status == true){
 patient_dic[patient_index]['comments'][point_index] = met_comment
+
+if (document.getElementById("lytic").checked){
+  var met_type = 'lytic';
+}
+else if (document.getElementById("blastic").checked){
+  var met_type = 'blastic';
+}
+else if (document.getElementById("mix").checked){
+  var met_type = 'mix';
+}
+else {
+  var met_type = '';
+}
+patient_dic[patient_index]['met_types'][point_index] = met_type
+
 $('#status').html(`Comment updated for point [` + patient_dic[patient_index]['points'][point_index]`]`)
 fillPointTable(patient_index)
 }
 else{
 patient_dic[patient_index]['points'].push([0, 0, 0])
 patient_dic[patient_index]['comments'].push(met_comment)
+patient_dic[patient_index]['met_types'].push('')
 $('#status').html(`New comment added for point [0, 0, 0]` )
 fillPointTable(patient_index)     
 }
 submit_points(patient_dic) 
 })
+
+
+
 
 function submit_points(patient_dic){
   $.ajax({
@@ -841,6 +934,7 @@ document.getElementById('remove_point').addEventListener('click', function (e)
 if(remove_status==true){
   patient_dic[patient_index]['points'].splice(point_index, 1)
   patient_dic[patient_index]['comments'].splice(point_index, 1)
+  patient_dic[patient_index]['met_types'].splice(point_index, 1)
  fillPointTable(patient_index) 
  remove_status =false
  $('#status').html(`Point [` + patient_dic[patient_index]['points'][point_index] + `] is removed`)
@@ -862,6 +956,7 @@ if (patient_dic[patient_index]['points'].length == 1){
 if (patient_dic[patient_index]['points'].length > 0){
 patient_dic[patient_index]['points'].pop();
 patient_dic[patient_index]['comments'].pop();
+patient_dic[patient_index]['met_types'].pop();
 fillPointTable(patient_index)
 }
 else{
@@ -916,6 +1011,22 @@ var met_point = [x_capture, y_capture, z_capture]
 var met_comment = document.getElementById("comment").value;
 patient_dic[patient_index]['points'].push(met_point)
 patient_dic[patient_index]['comments'].push(met_comment)
+if (document.getElementById("lytic").checked){
+  var met_type = 'lytic';
+}
+else if (document.getElementById("blastic").checked){
+  var met_type = 'blastic';
+}
+else if (document.getElementById("mix").checked){
+  var met_type = 'mix';
+}
+else {
+  var met_type = '';
+}
+patient_dic[patient_index]['met_types'].push(met_type)
+// document.getElementById("lytic").checked = false;
+// document.getElementById("blastic").checked = false;
+// document.getElementById("mix").checked = false;
 onImageRendered()
 fillPointTable(patient_index)  
 submit_points(patient_dic)   
@@ -1151,6 +1262,12 @@ else if (frame == 'YZFrame') {
       overlay_element.addEventListener('dblclick', function(e){ 
         document.getElementById('comment').disabled = false;
         document.getElementById("comment").value = ""
+        document.getElementById("txt_lytic").style.color = 'red'
+        document.getElementById("txt_blastic").style.color = 'red'
+        document.getElementById("txt_mix").style.color = 'red'
+        document.getElementById("lytic").checked = false;
+        document.getElementById("blastic").checked = false;
+        document.getElementById("mix").checked = false;
 
             let cursorPosition = getCursorPosition(overlay_element, e)
             setIndicator('XYFrame', cursorPosition)
@@ -1164,6 +1281,12 @@ else if (frame == 'YZFrame') {
       overlay_XZ_element.addEventListener('dblclick', function(e){
       document.getElementById('comment').disabled = false; 
       document.getElementById("comment").value = ""
+      document.getElementById("txt_lytic").style.color = 'red'
+      document.getElementById("txt_blastic").style.color = 'red'
+      document.getElementById("txt_mix").style.color = 'red'
+      document.getElementById("lytic").checked = false;
+      document.getElementById("blastic").checked = false;
+      document.getElementById("mix").checked = false;
             let cursorPosition = getCursorPosition(overlay_XZ_element, e)
             setIndicator('XZFrame', cursorPosition)
           });
@@ -1172,6 +1295,12 @@ else if (frame == 'YZFrame') {
       overlay_YZ_element.addEventListener('dblclick', function(e){ 
         document.getElementById('comment').disabled = false;
         document.getElementById("comment").value = ""
+        document.getElementById("txt_lytic").style.color = 'red'
+        document.getElementById("txt_blastic").style.color = 'red'
+        document.getElementById("txt_mix").style.color = 'red'
+        document.getElementById("lytic").checked = false;
+        document.getElementById("blastic").checked = false;
+        document.getElementById("mix").checked = false;
             let cursorPosition = getCursorPosition(overlay_YZ_element, e)
             setIndicator('YZFrame', cursorPosition)
           });
@@ -1558,12 +1687,12 @@ table, th, td {
   direction: rtl;
 }*/
 textarea {
-  width: 152px;
+  width: 192px;
   height: 80px;
 }
 table.st0 {
   /*background-color: lightblue;*/
-  width: 150px;
+  width: 190px;
   /*height: 20px;*/
   font-family:'Courier New', Courier, monospace; 
   /*font-family: Helvetica, Arial, sans-serif;*/
@@ -1572,7 +1701,7 @@ table.st0 {
 }
 div.ex0 {
   /*background-color: lightblue;*/
-  width: 150px;
+  width: 190px;
   /*height: 14px;*/
   /*font-family:'Courier New', Courier, monospace; */
   font-family: Helvetica, Arial, sans-serif;
@@ -1582,7 +1711,7 @@ div.ex0 {
 }
 div.ex1 {
   /*background-color: lightblue;*/
-  width: 150px;
+  width: 190px;
   height: 240px;
   overflow: scroll;
   font-family:'Courier New', Courier, monospace; 
@@ -1591,7 +1720,7 @@ div.ex1 {
 }
 div.ex2 {
   /*background-color: lightblue;*/
-  width: 150px;
+  width: 190px;
   height: 100px;
   overflow: scroll;
   font-family:'Courier New', Courier, monospace; 
@@ -1600,7 +1729,7 @@ div.ex2 {
 }
 div.ex3 {
   /*background-color: lightblue;*/
-  width: 150px;
+  width: 190px;
   height: 130px;
   overflow: scroll;
   font-family:'Courier New', Courier, monospace; 
@@ -1869,28 +1998,42 @@ background-color: #E8CEBF;
   
   </td>
         <td colspan="2" style="height:50px">
+<!-- XY window  -->
 <div >
    <div class="tooltip">
-    <span class="tooltiptext">Window Center</span>
+    <span class="tooltiptext"> XY Window/Level</span>
     <i class="fas fa-adjust txt"></i> 
   </div>
-  <input id='winCenter' type='range' style="width: 400px;" class="slider"/>
-   <label class="txt" id="c_val"></label>
-  </div>
-  <div>
-     <div class="tooltip">
+  <input id='winCenter' type='range' style="width: 200px;" class="slider"/>
+   <!-- <label class="txt" id="c_val"></label> -->
+<!--      <div class="tooltip">
     <span class="tooltiptext">Window Width</span>
     <i class="fas fa-arrows-alt-h txt"></i>
-  </div>
-  
-  <input id='winWidth' type='range'  style="width: 400px;" class="slider"/>
-  <label id="w_val" class="txt"></label>
+  </div>  -->
+  <input id='winWidth' type='range'  style="width: 200px;" class="slider"/>
+  <!-- <label id="w_val" class="txt"></label> -->
 </div>
+<!-- Z window and level -->
+<div >
+   <div class="tooltip">
+    <span class="tooltiptext"> Z Window/Level </span>
+    <i class="fas fa-adjust txt"></i> 
+  </div>
+  <input id='zWinCenter' type='range' style="width: 200px;" class="slider"/>
+   <!-- <label class="txt" id="zc_val"></label> -->
+<!--      <div class="tooltip">
+    <span class="tooltiptext">Window Width</span>
+    <i class="fas fa-arrows-alt-h txt"></i>
+  </div>  -->
+  <input id='zWinWidth' type='range'  style="width: 200px;" class="slider"/>
+  <!-- <label id="zw_val" class="txt"></label> -->
+</div>
+
       </td>
     </tr>
     <tr>
       <!-- LIST MEANU  -->
-        <td rowspan = "4" style="width:150px" valign="top">
+        <td rowspan = "4" style="width:190px" valign="top">
           <div class = "ex0"> Patients</div>
           <div class = "ex1" id="patients_list">
           </div>
@@ -1902,37 +2045,38 @@ background-color: #E8CEBF;
           <!-- <div class = "ex2" id="comment"> -->
             <textarea id="comment" name="comment"></textarea>
           <!-- </div> -->
+
+
+
+<label>
+  <input id="lytic" type="radio" name="radio" value="lytic">
+  <span id="txt_lytic">Lytic</span>
+</label>
+<label>
+  <input  id="blastic" type="radio" name="radio" value="blastic">
+  <span id="txt_blastic">Blast.</span>
+</label>
+<label>
+  <input  id="mix" type="radio" name="radio" value="mix">
+  <span id="txt_mix">Mix</span>
+</label>
+
+
+
+
+
+
           <div class = "ex0"> Points
             <button id="remove_point" class="txtbtn default txtright"> remove
           </button></div>
           <div class = "ex3" id="met_points">
             <table id="metCenters" class="st0">
   <tr class="st0">
-    <td  valign="top" style="width:150px; border: 1px solid black;"> </td>
+    <td  valign="top" style="width:190px; border: 1px solid black;"> </td>
   </tr>
 </table>
           </div>
 
-<!--           
-<table  style="width:150px; font-family:'Courier New', Courier, monospace; font-size:120%
-border: 1px solid black;">
-  <tr style="width:150px; border: 1px solid black;">
-    <span id="save_status" class="label-other"></span>
-    <td valign="top" style="width:150px; border: 1px solid black;"> Patients </td>
-  </tr>
-</table>
-<table id="patienList" style="width:150px; font-family:'Courier New', Courier, monospace; font-size:120%; border: 1px solid black;">
-  <tr style="width:150px; border: 1px solid black;">
-    <td  valign="top" style="width:150px; border: 1px solid black;"> </td>
-    <td valign="top" style="width:150px; border: 1px solid black;"> POINTS:
-          [X,Y,Z] </td>
-  </tr>
-</table>
-  <table id="metCenters" style="width:150px; font-family:'Courier New', Courier, monospace; font-size:120%; border: 1px solid black;">
-  <tr style="width:150px; border: 1px solid black;">
-    <td  valign="top" style="width:150px; border: 1px solid black;"> </td>
-  </tr>
-</table> -->
   
         </td>
         <!-- SLIDER XYY  -->

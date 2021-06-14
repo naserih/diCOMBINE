@@ -77,17 +77,27 @@ def load_stored_data(directory):
         patientId = os.path.splitext(os.path.basename(processed_file))[0]
         points = []
         comments = []
-        stored_points[patientId] = {'points':[], 'comments':[]}
+        met_types = []
+        stored_points[patientId] = {'points':[], 'comments':[], 'met_types':[]}
         with open(os.path.join(directory, processed_file), 'r') as stored_file:
             csvreader = csv.reader(stored_file)
             for row in csvreader:
                 point = eval(row[2])
                 if len(row) < 4:
-                    comment = 'no good' 
+                    comment = '' 
+                    met_type = ''
+                elif len(row) == 4:
+                    comment = row[3]
+                    met_type = ''
                 else:
                     comment = row[3]
+                    met_type = row[4]
+
+                print (met_type)
+                # met_type = comment = row[4]
                 stored_points[patientId]['points'].append(point)
                 stored_points[patientId]['comments'].append(comment)
+                stored_points[patientId]['met_types'].append(met_type)
 
     return stored_points
 
@@ -197,6 +207,7 @@ def post_patient_dic():
                                 patient_dic[patient_id]['file_name'], 
                                 patient_dic[patient_id]['points'][i],
                                 patient_dic[patient_id]['comments'][i],
+                                patient_dic[patient_id]['met_types'][i],
                                 ])
             # print (scores[key]['file_name'], scores[key]['score'])
             directory = '%s/%s_%s/%s/'%(output_path, access_key,KEYS[access_key][0],KEYS[access_key][1])    
@@ -210,7 +221,6 @@ def post_patient_dic():
 @app.route('/', methods=['GET', 'POST'])
 def index():
     return render_template('index.html')
-
 
 
 if __name__ == "__main__":
