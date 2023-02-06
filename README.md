@@ -2,10 +2,11 @@
 `diCOMBINE` is a web application that allows users to visualize 3D DICOM files and label regions of interest (ROI) in the images. The application also provides the ability to annotate the labeled ROIs.
 
 ## Features
-3D visualization of DICOM files
-Ability to label ROIs in images
-Annotation of labeled ROIs
-User-friendly interface
+- User-friendly interface
+- Create multiple users
+- 3D visualization of DICOM files
+- Ability to label ROIs in images
+- Annotation of labeled ROIs
 
 ## Getting Started
 To get started with diCOMBINE, you need to have Python 3.8 and the Flask framework installed on your machine. Then, clone the repository and install the required dependencies using pip:
