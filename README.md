@@ -32,4 +32,4 @@ The application will be running on `http://localhost:5000`.
 We welcome contributions to diCOMBINE. If you are interested in contributing, please fork the repository and create a pull request with your changes.
 
 ## Contact
-For support or questions, please email the developer Hossein Naseri at hossein.naseri@mail.mcgill.com.
+For support or questions, please email the developer *Hossein Naseri* at hossein.naseri@mail.mcgill.com.
