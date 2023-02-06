@@ -1,16 +1,11 @@
-env.py
-data
-data/
-env3
-venv3
-venv
+
+# file extensions
 *.doc
 *.dcm
 *.pdf
 *.doc
 *.csv
-points/
-points
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -57,6 +52,7 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+.DS_Store
 
 # PyBuilder
 target/
@@ -67,19 +63,24 @@ target/
 # IPython
 profile_default/
 ipython_config.py
-
 # pyenv
 .python-version
 
 # Environments
 .env
 .venv
+env.py
 env/
 venv3/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# config
+config.py
+config.yml
+config
 
 # Spyder project settings
 .spyderproject
