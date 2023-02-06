@@ -1,10 +1,10 @@
 
 # file extensions
-*.doc
-*.dcm
-*.pdf
-*.doc
-*.csv
+# *.doc
+# *.dcm
+# *.pdf
+# *.doc
+# *.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
