@@ -1,6 +1,6 @@
 import os
 import io
-from flask import Flask, flash, jsonify, render_template, request, send_file, url_for, send_from_directory
+from flask import Flask, jsonify, abort, render_template, request, send_from_directory
 import numpy as np
 from util.dicom_utils import get_cts
 from PIL import Image, ImageEnhance, ImageOps
@@ -8,47 +8,56 @@ import config as CONFIG
 import json
 import csv
 
-output_path = CONFIG.OUTPUTDATA
-db = CONFIG.PATIENTS_DATABASE
-# images_url = 'http://127.0.0.1:5000/images'
-
 SERVER_IP = CONFIG.SERVER_IP
 SERVER_PORT = CONFIG.SERVER_PORT
-
+db = CONFIG.IMAGES_DATABASE
+output_path = CONFIG.OUTPUTDATA
 images_url = 'http://%s:%s/images'%(SERVER_IP,SERVER_PORT)
 KEYS = CONFIG.VALID_KEYS
 
+class Image():
+    def __init__(self, image_file_path, image_file):
+        self.image_file_path = image_file_path
+        self.image_file = image_file
+        self.image_metadata = {}
 
-def load_dicoms(patient_file_path, patient_file):
-    patient_metadata = {}
-    # for patient_file in patient_filenames:
-    if not os.path.exists(os.path.join(patient_file_path, patient_file, 'XY')):
-        os.makedirs(os.path.join(patient_file_path, patient_file, 'XY'))
-        print ('ERROR: NO CT IMAGES FOR PATIENT %s' %patient_file)
-    if not os.path.exists(os.path.join(patient_file_path, patient_file, 'XZ')):
-        os.makedirs(os.path.join(patient_file_path, patient_file, 'XZ'))
-    if not os.path.exists(os.path.join(patient_file_path, patient_file, 'YZ')):
-        os.makedirs(os.path.join(patient_file_path, patient_file, 'YZ'))
-    patient_metadata[patient_file] = {}
-    ct_file = [os.path.join(patient_file_path, patient_file, 'XY', f) for f in os.listdir(os.path.join(patient_file_path, patient_file, 'XY'))]
-    patient_metadata[patient_file]['xz_path'] = os.path.join(patient_file_path, patient_file, 'XZ')
-    patient_metadata[patient_file]['yz_path'] = os.path.join(patient_file_path, patient_file, 'YZ')
-    patient_metadata[patient_file]['xy_path'] =  os.path.join(patient_file_path, patient_file, 'XY') 
-    patient_metadata[patient_file]['ct_array'], \
-    patient_metadata[patient_file]['ct_array_hu'], \
-    patient_metadata[patient_file]['ct_x'], \
-    patient_metadata[patient_file]['ct_y'], \
-    patient_metadata[patient_file]['ct_z'], \
-    patient_metadata[patient_file]['ct_spacing'], \
-    patient_metadata[patient_file]['ct_index'], = get_cts(ct_file)
-    X = ['wadouri:%s/%s/XY/%s'%(images_url,patient_file,f) for f in os.listdir(os.path.join(patient_file_path, patient_file, 'XY'))]        
-    Y = patient_metadata[patient_file]['ct_index']
-    # print (patient_file, patient_metadata[patient_file]['ct_array'].shape, patient_metadata[patient_file]['ct_spacing'])
-    Z = [x for _,x in sorted(zip(Y,X))]
-    Z.reverse()
-    patient_metadata[patient_file]['xy_file'] = Z
+    def load_dicoms(self):
+        xy_path= os.path.join(self.image_file_path, self.image_file, 'XY')
 
-    return patient_metadata
+        # for self.image_file in self.image_filenames:
+        if not os.path.exists(xy_path):
+                return jsonify(message=f"File is not valid: {xy_path}")
+        self.image_metadata[self.image_file] = {}
+        ct_file = [os.path.join(xy_path, f) for f in os.listdir(xy_path)]
+        self.image_metadata[self.image_file]['xy_path'] = xy_path
+        self.image_metadata[self.image_file]['ct_array'], \
+        self.image_metadata[self.image_file]['ct_array_hu'], \
+        self.image_metadata[self.image_file]['ct_x'], \
+        self.image_metadata[self.image_file]['ct_y'], \
+        self.image_metadata[self.image_file]['ct_z'], \
+        self.image_metadata[self.image_file]['ct_spacing'], \
+        self.image_metadata[self.image_file]['ct_index'], = get_cts(ct_file)
+        X = ['wadouri:%s/%s/XY/%s'%(images_url,self.image_file,f) for f in os.listdir(xy_path)]        
+        Y = self.image_metadata[self.image_file]['ct_index']
+        Z = [x for _,x in sorted(zip(Y,X))]
+        Z.reverse()
+        self.image_metadata[self.image_file]['xy_file'] = Z
+
+        return self.image_metadata
+
+    def load_pngs(self):
+        xz_path = os.path.join(self.image_file_path, self.image_file, 'XZ')
+        yz_path = os.path.join(self.image_file_path, self.image_file, 'YZ')
+        if not os.path.exists(xz_path):
+            return jsonify(message=f"File is not valid: {xz_path}")
+        if not os.path.exists(yz_path):
+            return jsonify(message=f"File is not valid: {yz_path}")
+        self.image_metadata[self.image_file]['xz_path'] = xz_path
+        self.image_metadata[self.image_file]['yz_path'] = yz_path
+        for image in self.image_metadata:
+            self.image_metadata[image]['xz_file'] = ['%s/%s/XZ/%s'%(images_url,image,f) for f in sorted(os.listdir(xz_path))]
+            self.image_metadata[image]['yz_file'] = ['%s/%s/YZ/%s'%(images_url,image,f) for f in sorted(os.listdir(yz_path))]
+        return self.image_metadata
 
 def window_image(image, window_center, window_width):
     img_min = window_center - window_width // 2
@@ -61,24 +70,15 @@ def window_image(image, window_center, window_width):
 def savePoints(pid, points):
     np.savetxt('%s_points.out'%(pid), x, delimiter=',')
 
-def load_pngs(patient_file_path, patient_metadata):
-    for patient in patient_metadata:
-        patient_metadata[patient]['xz_file'] = ['%s/%s/XZ/%s'%(images_url,patient,f) for f in sorted(os.listdir(os.path.join(patient_file_path, patient, 'XZ')))]
-        patient_metadata[patient]['yz_file'] = ['%s/%s/YZ/%s'%(images_url,patient,f) for f in sorted(os.listdir(os.path.join(patient_file_path, patient, 'YZ')))]
-        # patient_metadata[patient]['xz_file'] = os.listdir(os.path.join(patient_file_path, patient, 'XZ'))
-        # patient_metadata[patient]['yz_file'] = os.listdir(os.path.join(patient_file_path, patient, 'YZ'))
-    return patient_metadata
-
-
 def load_stored_data(directory):
     stored_points = {}
     processed_files = os.listdir(directory)
     for processed_file in processed_files:
-        patientId = os.path.splitext(os.path.basename(processed_file))[0]
+        imageId = os.path.splitext(os.path.basename(processed_file))[0]
         points = []
         comments = []
         met_types = []
-        stored_points[patientId] = {'points':[], 'comments':[], 'met_types':[]}
+        stored_points[imageId] = {'points':[], 'comments':[], 'met_types':[]}
         with open(os.path.join(directory, processed_file), 'r') as stored_file:
             csvreader = csv.reader(stored_file)
             for row in csvreader:
@@ -95,9 +95,9 @@ def load_stored_data(directory):
 
                 print (met_type)
                 # met_type = comment = row[4]
-                stored_points[patientId]['points'].append(point)
-                stored_points[patientId]['comments'].append(comment)
-                stored_points[patientId]['met_types'].append(met_type)
+                stored_points[imageId]['points'].append(point)
+                stored_points[imageId]['comments'].append(comment)
+                stored_points[imageId]['met_types'].append(met_type)
 
     return stored_points
 
@@ -109,9 +109,7 @@ app = Flask(__name__)
 
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
-# patient_metadata = {}
-
-
+# image_metadata = {}
 
 @app.after_request
 def add_header(response):
@@ -127,62 +125,63 @@ def help():
     return render_template("help.html")
 
 
-@app.route("/images/<patient>/XY/<image_name>")
-def get_patient_xy_image(patient, image_name):
+@app.route("/images/<image>/XY/<image_name>")
+def get_image_xy_image(image, image_name):
     try:
-        return send_from_directory(app.config["PATIENTS_DATA"][patient]['xy_path'], filename=image_name, as_attachment=True)
+        return send_from_directory(app.config["images_DATA"][image]['xy_path'], image_name, as_attachment=True)
     except FileNotFoundError:
         abort(404)
 
-@app.route("/images/<patient>/YZ/<image_name>")
-def get_patient_yz_image(patient, image_name):
+@app.route("/images/<image>/YZ/<image_name>")
+def get_image_yz_image(image, image_name):
     try:
-        return send_from_directory(app.config["PATIENTS_DATA"][patient]['yz_path'], filename=image_name, as_attachment=True)
+        return send_from_directory(app.config["images_DATA"][image]['yz_path'], image_name, as_attachment=True)
     except FileNotFoundError:
         abort(404)
 
-@app.route("/images/<patient>/XZ/<image_name>")
-def get_patient_xz_image(patient, image_name):
+@app.route("/images/<image>/XZ/<image_name>")
+def get_image_xz_image(image, image_name):
     try:
-        return send_from_directory(app.config["PATIENTS_DATA"][patient]['xz_path'], filename=image_name, as_attachment=True)
+        return send_from_directory(app.config["images_DATA"][image]['xz_path'], image_name, as_attachment=True)
     except FileNotFoundError:
         abort(404)
 
 
-@app.route('/_load_patients')
-def load_patients():
+@app.route('/_load_images')
+def load_images():
     access_key = request.args.get('key', 0, type=str)
-    if access_key in KEYS: 
+    if access_key in KEYS:
         directory = '%s/%s_%s/%s'%(output_path, access_key,KEYS[access_key][0],KEYS[access_key][1])
         if not os.path.exists(directory):
-            os.makedirs(directory)
+            os.makedirs(directory)      
 
-        patient_file_path = db[KEYS[access_key][1]]
-        patients = os.listdir(patient_file_path)
+        image_file_path = db[KEYS[access_key][1]]
+        images = [f for f in os.listdir(image_file_path) 
+            if os.path.isdir(os.path.join(image_file_path, f))]
         stored_points = load_stored_data(directory)
-        if len(patients) == 0:
-            patients = ['DONE']
+        if len(images) == 0:
+            images = ['DONE']
     else:
-        patients = []
+        images = []
         stored_points = {}
 
-    return jsonify(patients = patients, stored_points = stored_points)
+    return jsonify(images = images, stored_points = stored_points)
 
-# print ('>>>> ', patient_metadata)
-@app.route('/_load_patient_data')
-def load_patient_data():
+# print ('>>>> ', image_metadata)
+@app.route('/_load_image_data')
+def load_image_data():
     access_key = request.args.get('key', 0, type=str)
-    patientId = request.args.get('patientId', 0, type=str)
+    imageId = request.args.get('imageId', 0, type=str)
 
-    patient_file_path = db[KEYS[access_key][1]]
-
-    patient_metadata = load_dicoms(patient_file_path, patientId)
-    patient_metadata = load_pngs(patient_file_path, patient_metadata)
-    app.config["PATIENTS_DATA"] = patient_metadata
-    xy_files = patient_metadata[patientId]['xy_file']
-    xz_files = patient_metadata[patientId]['xz_file']
-    yz_files = patient_metadata[patientId]['yz_file']
-    ct_spacings = list(patient_metadata[patientId]['ct_spacing'])
+    image_file_path = db[KEYS[access_key][1]]
+    img = Image(image_file_path, imageId)
+    img.load_dicoms()
+    image_metadata = img.load_pngs()
+    app.config["images_DATA"] = image_metadata
+    xy_files = image_metadata[imageId]['xy_file']
+    xz_files = image_metadata[imageId]['xz_file']
+    yz_files = image_metadata[imageId]['yz_file']
+    ct_spacings = list(image_metadata[imageId]['ct_spacing'])
     # print (xy_files)
     # print('ct_spacings')
     # print(ct_spacings)
@@ -193,27 +192,27 @@ def load_patient_data():
 
 
 
-@app.route('/_post_patient_dic', methods=['POST', 'GET'])
-def post_patient_dic():
+@app.route('/_post_image_dic', methods=['POST', 'GET'])
+def post_image_dic():
     if request.method == 'POST':
-        patient_dic = request.json['patient_dic']
+        image_dic = request.json['image_dic']
         access_key = request.json['key']
-        # print patient_dic
-        for patient_id in patient_dic:
-            patient_array = []
-            for i in range(len(patient_dic[patient_id]['points'])):
-                patient_array.append([
-                                patient_dic[patient_id]['id'],
-                                patient_dic[patient_id]['file_name'], 
-                                patient_dic[patient_id]['points'][i],
-                                patient_dic[patient_id]['comments'][i],
-                                patient_dic[patient_id]['met_types'][i],
+        # print image_dic
+        for image_id in image_dic:
+            image_array = []
+            for i in range(len(image_dic[image_id]['points'])):
+                image_array.append([
+                                image_dic[image_id]['id'],
+                                image_dic[image_id]['file_name'], 
+                                image_dic[image_id]['points'][i],
+                                image_dic[image_id]['comments'][i],
+                                image_dic[image_id]['met_types'][i],
                                 ])
             # print (scores[key]['file_name'], scores[key]['score'])
             directory = '%s/%s_%s/%s/'%(output_path, access_key,KEYS[access_key][0],KEYS[access_key][1])    
-            with open('%s/%s.csv'%(directory, patient_dic[patient_id]['file_name']), 'w', newline="") as csvfile:
+            with open('%s/%s.csv'%(directory, image_dic[image_id]['file_name']), 'w', newline="") as csvfile:
                 csvwriter = csv.writer(csvfile, delimiter=',')
-                csvwriter.writerows(patient_array)
+                csvwriter.writerows(image_array)
         return jsonify(status='stored!')
 
 

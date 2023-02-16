@@ -149,7 +149,7 @@
         }
         }
 
-  var patients, xy_image_ids, xz_image_ids, yz_image_ids, patient_index, point_index;
+  var images, xy_image_ids, xz_image_ids, yz_image_ids, patient_index, point_index;
   var XYImageIndex = 0, XZImageIndex = 256, YZImageIndex = 256;
   var len_xyx = 512, len_xyy = 512;
   var len_xzz = 246, len_yzz = 246;
@@ -161,7 +161,7 @@
 
   $(document).ready(function() {
 
-    var patient_dic = {};
+    var image_dic = {};
     var display_div = document.getElementById("display");
     display_div.style.display = "none"
     document.getElementById('remove_point').disabled = true;
@@ -214,8 +214,8 @@
  
 
 
-        $.getJSON($SCRIPT_ROOT + '/_load_patient_data', {
-          patientId: patients[patient_index],
+        $.getJSON($SCRIPT_ROOT + '/_load_image_data', {
+          imageId: images[patient_index],
           key: $('#key').val(),
         }, function(data) {
             xy_image_ids = data.xy_files
@@ -225,7 +225,7 @@
             // xy_image_ids = sort_array(data.xy_files)
             // xz_image_ids = sort_array(data.xz_files)
             // yz_image_ids = sort_array(data.yz_files)
-            // console.log(patients[patient_index])
+            // console.log(images[patient_index])
             // console.log(spacings)
             // console.log(xz_image_ids)
             // console.log(sort_array(xz_image_ids))
@@ -248,7 +248,7 @@
     element = document.getElementById("XYFrame")
     viewport = cornerstone.getViewport(element);
     document.getElementById('topleft').textContent = "P: "+ (patient_index+1) + "/ SIDE: " + XYImageIndex
-    document.getElementById('topright').textContent = "Points:" + patient_dic[patient_index]['points'].length;
+    document.getElementById('topright').textContent = "Points:" + image_dic[patient_index]['points'].length;
     document.getElementById('bottomleft').textContent = "WW/WL:" + Math.round(viewport.voi.windowWidth) + "/" + Math.round(viewport.voi.windowCenter);
     document.getElementById('bottomright').textContent = "Zoom:" + viewport.scale.toFixed(2);
     document.getElementById('XZLabel').textContent = "#: "+ XZImageIndex
@@ -302,8 +302,8 @@ function updateView(frame, imageIndex){
 }
 
 function check_patient_index(patient_index){
-  // console.log(patients.length)
-      for (var i = 0; i < patients.length; i++) {
+  // console.log(images.length)
+      for (var i = 0; i < images.length; i++) {
           $('#'+i).removeClass("listSel");
           $('#'+i).addClass("listNoSel");
         }
@@ -313,11 +313,11 @@ function check_patient_index(patient_index){
 
 
 function fillCommentBox(point_index){
-      console.log('patient_dic')
-      console.log(patient_dic)
+      console.log('image_dic')
+      console.log(image_dic)
       var comment_div = document.getElementById("comment");
-      var met_comment = patient_dic[patient_index]['comments'][point_index]
-      var met_type = patient_dic[patient_index]['met_types'][point_index]
+      var met_comment = image_dic[patient_index]['comments'][point_index]
+      var met_type = image_dic[patient_index]['met_types'][point_index]
       // comment_div.innerHTML = met_comment;
       comment_div.value = met_comment;
       // console.log('met_type')
@@ -340,9 +340,9 @@ function fillCommentBox(point_index){
       }
       
       
-      xyxVal = patient_dic[patient_index]['points'][point_index][0]; 
-      xyyVal = patient_dic[patient_index]['points'][point_index][1];
-      XYImageIndex = patient_dic[patient_index]['points'][point_index][2];    
+      xyxVal = image_dic[patient_index]['points'][point_index][0]; 
+      xyyVal = image_dic[patient_index]['points'][point_index][1];
+      XYImageIndex = image_dic[patient_index]['points'][point_index][2];    
       xzxVal = xyxVal
       xzzVal = XYImageIndex/AR
       XZImageIndex = xyyVal
@@ -371,7 +371,7 @@ function fillCommentBox(point_index){
 
 
 
-      for (var i = 0; i < patient_dic[patient_index]['points'].length; i++) {
+      for (var i = 0; i < image_dic[patient_index]['points'].length; i++) {
           $('#point_'+i).removeClass("success");
           $('#point_'+i).addClass("default");
         }
@@ -383,13 +383,13 @@ function fillCommentBox(point_index){
     function fillPointTable(patient_index){
                 var pointsBoard = document.getElementById("met_points");
                 var patient_span = document.getElementById("patient_"+patient_index) 
-                patient_span.innerHTML = patient_dic[patient_index]['points'].length + ' mets'
+                patient_span.innerHTML = image_dic[patient_index]['points'].length + ' mets'
 
                 pointsBoard.innerHTML = "";
 
-                for (var i = 0; i < patient_dic[patient_index]['points'].length; i++) {
+                for (var i = 0; i < image_dic[patient_index]['points'].length; i++) {
                 
-                met_point = patient_dic[patient_index]['points'][i]
+                met_point = image_dic[patient_index]['points'][i]
                 
                 var point_div = document.createElement("DIV");
                 var idButton = document.createElement('button');
@@ -463,7 +463,7 @@ function fillCommentBox(point_index){
 
       var table = document.getElementById("metCenters");
       
-      // patient_dic[patient_index]['points']
+      // image_dic[patient_index]['points']
 
       fillPointTable(patient_index)
 
@@ -550,7 +550,7 @@ function fillCommentBox(point_index){
     $('#status').removeClass("label-danger");
     $('#status').removeClass("label-warning");
     $('#status').addClass("label-success");
-    $('#status').html(patients.length +` file loaded!`)
+    $('#status').html(images.length +` file loaded!`)
     $('#reload').removeClass("orange");
     $('#reload').addClass("green");
     // XYelement = document.getElementById('XYFrame')
@@ -619,20 +619,19 @@ function fillCommentBox(point_index){
     // };
 
     document.getElementById('key_check').addEventListener('click', function (e) {
-      // $('#key').val("1001")
-      $.getJSON($SCRIPT_ROOT + '/_load_patients', {
+      $.getJSON($SCRIPT_ROOT + '/_load_images', {
                   key: $('#key').val(),
               }, function(data) {
                   patient_index = 0
-                  patients = data.patients
+                  images = data.images
                   stored_points =  data.stored_points
-                  if (patients === undefined || patients.length == 0) 
+                  if (images === undefined || images.length == 0) 
                       {
                         $('#status').removeClass("label-other");
                         $('#status').addClass("label-danger");
                         $('#status').html(`Info: Access Denied!`)
                        }
-                  else if (patients.length == 1 && patients[0] == 'DONE') 
+                  else if (images.length == 1 && images[0] == 'DONE') 
                       {
                         $('#status').removeClass("label-other");
                         $('#status').addClass("label-success");
@@ -649,27 +648,27 @@ function fillCommentBox(point_index){
                         display_div.style.display = "block"
                       }
 
-                for (var i = 0; i < patients.length; i++) {
-                // console.log(patients[i])
-                // console.log(scored_patients[i])
-                if (patients[i] in stored_points){
-                    var prev_points =  stored_points[patients[i]]['points']
-                    var prev_comments =  stored_points[patients[i]]['comments']
-                    var prev_met_types =  stored_points[patients[i]]['met_types']
+                for (var i = 0; i < images.length; i++) {
+                // console.log(images[i])
+                // console.log(scored_images[i])
+                if (images[i] in stored_points){
+                    var prev_points =  stored_points[images[i]]['points']
+                    var prev_comments =  stored_points[images[i]]['comments']
+                    var prev_met_types =  stored_points[images[i]]['met_types']
                 }
                 else {
                  var prev_points = []  
                  var prev_comments = [] 
                  var prev_met_types = []
                 }
-                patient_dic[i] = {
-                    'file_name': patients[i],
+                image_dic[i] = {
+                    'file_name': images[i],
                     'id': i,
                     'points' : prev_points,
                     'comments' : prev_comments,
                     'met_types' : prev_met_types}
 
-                var scoreBoard = document.getElementById("patients_list")
+                var scoreBoard = document.getElementById("images_list")
                 var patientNote = document.createElement("DIV");
                 var idButton = document.createElement('button');
                 var spaceSpan = document.createElement("SPAN");
@@ -713,7 +712,7 @@ function fillCommentBox(point_index){
           patient_index += 1
           $('#status').html(`Patient `+ (patient_index+1) +` is loaded!`)
           document.getElementById('prev_file').disabled = false;
-          if (patient_index+1 == patients.length){
+          if (patient_index+1 == images.length){
             document.getElementById('next_file').disabled = true;
         }
           load_data(patient_index)
@@ -874,13 +873,13 @@ $('input:radio[name="radio"]').change(function(){
         document.getElementById("txt_lytic").style.color = 'black'
         document.getElementById("txt_blastic").style.color = 'black'
         document.getElementById("txt_mix").style.color = 'black'
-        patient_dic[patient_index]['met_types'][point_index] = met_type;
+        image_dic[patient_index]['met_types'][point_index] = met_type;
       })
 
 document.getElementById('update_comment').addEventListener('click', function (e) {
 var met_comment = document.getElementById("comment").value;
 if (remove_status == true){
-patient_dic[patient_index]['comments'][point_index] = met_comment
+image_dic[patient_index]['comments'][point_index] = met_comment
 
 if (document.getElementById("lytic").checked){
   var met_type = 'lytic';
@@ -894,30 +893,30 @@ else if (document.getElementById("mix").checked){
 else {
   var met_type = '';
 }
-patient_dic[patient_index]['met_types'][point_index] = met_type
+image_dic[patient_index]['met_types'][point_index] = met_type
 
-$('#status').html(`Comment updated for point [` + patient_dic[patient_index]['points'][point_index]`]`)
+$('#status').html(`Comment updated for point [` + image_dic[patient_index]['points'][point_index]`]`)
 fillPointTable(patient_index)
 }
 else{
-patient_dic[patient_index]['points'].push([0, 0, 0])
-patient_dic[patient_index]['comments'].push(met_comment)
-patient_dic[patient_index]['met_types'].push('')
+image_dic[patient_index]['points'].push([0, 0, 0])
+image_dic[patient_index]['comments'].push(met_comment)
+image_dic[patient_index]['met_types'].push('')
 $('#status').html(`New comment added for point [0, 0, 0]` )
 fillPointTable(patient_index)     
 }
-submit_points(patient_dic) 
+submit_points(image_dic) 
 })
 
 
 
 
-function submit_points(patient_dic){
+function submit_points(image_dic){
   $.ajax({
   type: "POST",
   contentType: "application/json; charset=utf-8",
-  url: "/_post_patient_dic",
-  data: JSON.stringify({key:$('#key').val(), patient_dic:patient_dic}),
+  url: "/_post_image_dic",
+  data: JSON.stringify({key:$('#key').val(), image_dic:image_dic}),
   success: function (data) {
     console.log(data.status);
   },
@@ -932,31 +931,31 @@ function submit_points(patient_dic){
 document.getElementById('remove_point').addEventListener('click', function (e)
   {
 if(remove_status==true){
-  patient_dic[patient_index]['points'].splice(point_index, 1)
-  patient_dic[patient_index]['comments'].splice(point_index, 1)
-  patient_dic[patient_index]['met_types'].splice(point_index, 1)
+  image_dic[patient_index]['points'].splice(point_index, 1)
+  image_dic[patient_index]['comments'].splice(point_index, 1)
+  image_dic[patient_index]['met_types'].splice(point_index, 1)
  fillPointTable(patient_index) 
  remove_status =false
- $('#status').html(`Point [` + patient_dic[patient_index]['points'][point_index] + `] is removed`)
+ $('#status').html(`Point [` + image_dic[patient_index]['points'][point_index] + `] is removed`)
 }
 else{
   document.getElementById('remove_point').disabled = true;
   $('#status').html(`No Point selected.`)
 }
-submit_points(patient_dic) 
+submit_points(image_dic) 
   })
 
 
 document.getElementById('undo').addEventListener('click', function (e)
   {
-if (patient_dic[patient_index]['points'].length == 1){
+if (image_dic[patient_index]['points'].length == 1){
   // document.getElementById('undo').className = 'btn fas fa-undo darkgray';
   document.getElementById('undo').disabled = true;
 }
-if (patient_dic[patient_index]['points'].length > 0){
-patient_dic[patient_index]['points'].pop();
-patient_dic[patient_index]['comments'].pop();
-patient_dic[patient_index]['met_types'].pop();
+if (image_dic[patient_index]['points'].length > 0){
+image_dic[patient_index]['points'].pop();
+image_dic[patient_index]['comments'].pop();
+image_dic[patient_index]['met_types'].pop();
 fillPointTable(patient_index)
 }
 else{
@@ -1009,8 +1008,8 @@ z_capture = XYImageIndex;
 // console.log($('#xyx_slider').val() + "    " + zoomScale + "    " + xyxShift)
 var met_point = [x_capture, y_capture, z_capture]
 var met_comment = document.getElementById("comment").value;
-patient_dic[patient_index]['points'].push(met_point)
-patient_dic[patient_index]['comments'].push(met_comment)
+image_dic[patient_index]['points'].push(met_point)
+image_dic[patient_index]['comments'].push(met_comment)
 if (document.getElementById("lytic").checked){
   var met_type = 'lytic';
 }
@@ -1023,13 +1022,13 @@ else if (document.getElementById("mix").checked){
 else {
   var met_type = '';
 }
-patient_dic[patient_index]['met_types'].push(met_type)
+image_dic[patient_index]['met_types'].push(met_type)
 // document.getElementById("lytic").checked = false;
 // document.getElementById("blastic").checked = false;
 // document.getElementById("mix").checked = false;
 onImageRendered()
 fillPointTable(patient_index)  
-submit_points(patient_dic)   
+submit_points(image_dic)   
         });
 
 
@@ -2034,8 +2033,8 @@ background-color: #E8CEBF;
     <tr>
       <!-- LIST MEANU  -->
         <td rowspan = "4" style="width:190px" valign="top">
-          <div class = "ex0"> Patients</div>
-          <div class = "ex1" id="patients_list">
+          <div class = "ex0"> images</div>
+          <div class = "ex1" id="images_list">
           </div>
 
           <div class = "ex0"> Comment
